@@ -260,8 +260,8 @@
                         </div>
                         <div class="slider-container">
                             <label>Zoom:</label>
-                            <input type="range" id="zoom-level" min="15" max="50" value="40" step="2">
-                            <span id="zoom-val" class="slider-value">40</span>
+                            <input type="range" id="zoom-level" min="15" max="40" value="39" step="1">
+                            <span id="zoom-val" class="slider-value">39</span>
                         </div>
                     </div>
                 </div>
@@ -298,7 +298,7 @@
         let currentStep = 0;
         let isAnimating = false;
         let animationSpeed = 1000; // Will be calculated from FPS
-        let zoomLevel = 40;
+        let zoomLevel = 39;
         
         let params = {
             seqLength: 8,
@@ -750,7 +750,7 @@
             
             const towerHeight = params.dModel * 0.15 + params.numHeads * 0.1;
             // Invert zoom: higher values = closer to objects
-            const adjustedZoom = Math.max(10, 65 - zoomLevel + towerHeight * 0.5);
+            const adjustedZoom = Math.max(10, 55 - zoomLevel + towerHeight * 0.5);
             camera.position.set(adjustedZoom, adjustedZoom * 0.6 + towerHeight * 0.4, adjustedZoom);
             camera.lookAt(0, towerHeight * 0.4, 0);
             
@@ -770,7 +770,7 @@
             const time = Date.now() * 0.0001; // Reduced rotation speed
             const towerHeight = params.dModel * 0.15 + params.numHeads * 0.1;
             // Invert zoom: higher values = closer to objects
-            const adjustedZoom = Math.max(10, 65 - zoomLevel + towerHeight * 0.5);
+            const adjustedZoom = Math.max(10, 55 - zoomLevel + towerHeight * 0.5);
             
             camera.position.x = Math.cos(time) * adjustedZoom;
             camera.position.z = Math.sin(time) * adjustedZoom;
