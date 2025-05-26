@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Convolution Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 8px;
+            gap: 6px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 4px 0;
+        }
+        
+        .header h1 {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+        
+        .header p {
+            font-size: 10px;
+            color: #ccc;
+        }
+        
+        .content {
+            display: flex;
+            flex: 1;
+            gap: 8px;
+            min-height: 0;
+        }
+        
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 300px;
+        }
+        
+        #container {
+            flex: 2;
+            border: 1px solid #333;
+            position: relative;
+            min-height: 300px;
+        }
+        
+        #parameters {
+            background: #333;
+            border-radius: 4px;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        
+        .param-group {
+            background: #444;
+            padding: 6px;
+            border-radius: 3px;
+        }
+        
+        .param-group h3 {
+            margin: 0 0 4px 0;
+            color: #4CAF50;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .slider-container {
+            margin: 3px 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .slider-container label {
+            font-size: 9px;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 16px;
+        }
+        
+        .slider-value {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 9px;
+            min-width: 32px;
+            text-align: right;
+        }
+        
+        #controls {
+            text-align: center;
+            padding: 4px 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 9px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        #info {
+            background: #333;
+            border-radius: 3px;
+            padding: 6px;
+            flex-shrink: 0;
+        }
+        
+        .status {
+            margin: 2px 0;
+            padding: 2px 4px;
+            background: #444;
+            border-radius: 2px;
+            font-size: 9px;
+        }
+        
+        #output-info {
+            background: #2a5934;
+            padding: 4px;
+            border-radius: 3px;
+            margin-top: 4px;
+            font-size: 9px;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            
+            .left-panel {
+                min-width: auto;
+                order: 2;
+            }
+            
+            #container {
+                order: 1;
+                min-height: 250px;
+            }
+            
+            #parameters {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 4px;
+                padding: 6px;
+            }
+            
+            .param-group {
+                padding: 4px;
+            }
+            
+            .slider-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 2px;
+            }
+            
+            .slider-container label {
+                min-width: auto;
+                font-size: 8px;
+            }
+            
+            .slider-value {
+                min-width: auto;
+                text-align: left;
+            }
+            
+            button {
+                padding: 6px 10px;
+                font-size: 10px;
+            }
+            
+            .header h1 {
+                font-size: 14px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .main-container {
+                padding: 4px;
+                gap: 4px;
+            }
+            
+            #parameters {
+                grid-template-columns: 1fr;
+            }
+            
+            .param-group h3 {
+                font-size: 9px;
+            }
+            
+            .slider-container label,
+            .slider-value,
+            .status,
+            #output-info {
+                font-size: 8px;
+            }
+            
+            button {
+                padding: 4px 6px;
+                font-size: 8px;
+                margin: 1px;
+            }
+        }
+        
+        /* Landscape mobile optimization */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .content {
+                flex-direction: row;
+            }
+            
+            .left-panel {
+                max-width: 250px;
+                order: 1;
+            }
+            
+            #container {
+                order: 2;
+            }
+            
+            #parameters {
+                grid-template-columns: 1fr;
+                gap: 2px;
+                padding: 4px;
+            }
+            
+            .param-group {
+                padding: 3px;
+            }
+            
+            .param-group h3 {
+                font-size: 8px;
+                margin-bottom: 2px;
+            }
+            
+            .slider-container {
+                margin: 1px 0;
+            }
+            
+            .slider-container label,
+            .slider-value {
+                font-size: 7px;
+            }
+            
+            .status,
+            #output-info {
+                font-size: 7px;
+            }
+            
+            button {
+                padding: 2px 4px;
+                font-size: 7px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <h1>Interactive 3D Convolution Visualizer</h1>
+            <p>Adjust parameters to see how different convolution settings affect the operation</p>
+        </div>
+        
+        <div class="content">
+            <div class="left-panel">
+                <div id="parameters">
+                    <div class="param-group">
+                        <h3>Input Config</h3>
+                        <div class="slider-container">
+                            <label>Size:</label>
+                            <input type="range" id="image-size" min="3" max="12" value="7" step="1">
+                            <span id="image-size-val" class="slider-value">7</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Input Channels:</label>
+                            <input type="range" id="input-channels" min="1" max="4" value="1" step="1">
+                            <span id="input-channels-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Padding:</label>
+                            <input type="range" id="padding" min="0" max="3" value="1" step="1">
+                            <span id="padding-val" class="slider-value">1</span>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <h3>Kernel Config</h3>
+                        <div class="slider-container">
+                            <label>Size:</label>
+                            <input type="range" id="kernel-size" min="1" max="7" value="3" step="2">
+                            <span id="kernel-size-val" class="slider-value">3</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Output Channels:</label>
+                            <input type="range" id="output-channels" min="1" max="4" value="1" step="1">
+                            <span id="output-channels-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Dilation:</label>
+                            <input type="range" id="dilation" min="1" max="3" value="1" step="1">
+                            <span id="dilation-val" class="slider-value">1</span>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <h3>Operation</h3>
+                        <div class="slider-container">
+                            <label>Stride:</label>
+                            <input type="range" id="stride" min="1" max="3" value="1" step="1">
+                            <span id="stride-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Speed:</label>
+                            <input type="range" id="animation-speed" min="200" max="2000" value="800" step="100">
+                            <span id="speed-val" class="slider-value">800ms</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Zoom:</label>
+                            <input type="range" id="zoom-level" min="10" max="50" value="25" step="2">
+                            <span id="zoom-val" class="slider-value">25</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="controls">
+                    <button id="start-btn" onclick="startAnimation()">Start</button>
+                    <button id="pause-btn" onclick="pauseAnimation()">Pause</button>
+                    <button onclick="resetAnimation()">Reset</button>
+                    <button onclick="updateVisualization()">Update</button>
+                </div>
+                
+                <div id="info">
+                    <div class="status" id="step-info">Step: 0/25 - Ready</div>
+                    <div class="status" id="kernel-pos">Position: (0, 0)</div>
+                    <div class="status" id="conv-value">Value: 0</div>
+                    <div id="output-info">
+                        <div>Output: <span id="output-dims">5x5x1</span></div>
+                        <div id="receptive-field">Field: 3x3</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="container"></div>
+        </div>
+    </div>
+
+    <script>
+        // Scene setup
+        let scene, camera, renderer, animationId;
+        let imageBlocks = [];
+        let kernelBlocks = [];
+        let outputBlocks = [];
+        let currentStep = 0;
+        let isAnimating = false;
+        let frames = [];
+        let animationSpeed = 800;
+        let zoomLevel = 25;
+        let currentImage, currentKernel, currentPaddedImage;
+        
+        // Convolution parameters
+        let params = {
+            imageSize: 7,
+            inputChannels: 1,
+            outputChannels: 1,
+            kernelSize: 3,
+            stride: 1,
+            padding: 1,
+            dilation: 1
+        };
+        
+        // Calculated dimensions
+        let paddedSize, outputSize, totalSteps;
+        
+        // Dynamic image generation based on size
+        function generateImage(size) {
+            const image = [];
+            for (let i = 0; i < size; i++) {
+                image[i] = [];
+                for (let j = 0; j < size; j++) {
+                    // Create interesting patterns based on position
+                    let value;
+                    if (i < size / 2) {
+                        value = 1 + Math.random() * 3; // Lower values for top half
+                    } else {
+                        value = 7 + Math.random() * 3; // Higher values for bottom half
+                    }
+                    // Add some noise based on distance from center
+                    const centerX = size / 2;
+                    const centerY = size / 2;
+                    const distance = Math.sqrt((i - centerX) ** 2 + (j - centerY) ** 2);
+                    value += Math.sin(distance) * 1.5;
+                    image[i][j] = Math.max(0.1, Math.min(9.9, value));
+                }
+            }
+            return image;
+        }
+        
+        // Generate kernel based on size and type
+        function generateKernel(size) {
+            if (size === 1) {
+                return [[1]];
+            } else if (size === 3) {
+                // Sobel horizontal edge detector
+                return [
+                    [-1, -2, -1],
+                    [ 0,  0,  0],
+                    [ 1,  2,  1]
+                ];
+            } else if (size === 5) {
+                // Larger edge detector
+                return [
+                    [-1, -2, -2, -2, -1],
+                    [-1, -1, -1, -1, -1],
+                    [ 0,  0,  0,  0,  0],
+                    [ 1,  1,  1,  1,  1],
+                    [ 1,  2,  2,  2,  1]
+                ];
+            } else if (size === 7) {
+                // Even larger edge detector
+                const k = [];
+                for (let i = 0; i < 7; i++) {
+                    k[i] = [];
+                    for (let j = 0; j < 7; j++) {
+                        if (i < 3) k[i][j] = -1;
+                        else if (i === 3) k[i][j] = 0;
+                        else k[i][j] = 1;
+                    }
+                }
+                return k;
+            }
+            return [[1]]; // Default
+        }
+        
+        // Calculate output dimensions
+        function calculateDimensions() {
+            const effectiveKernel = params.kernelSize + (params.kernelSize - 1) * (params.dilation - 1);
+            paddedSize = params.imageSize + 2 * params.padding;
+            outputSize = Math.floor((paddedSize - effectiveKernel) / params.stride) + 1;
+            totalSteps = outputSize * outputSize;
+            
+            // Update UI
+            document.getElementById('output-dims').textContent = 
+                `${outputSize}x${outputSize}x${params.outputChannels}`;
+            document.getElementById('receptive-field').textContent = 
+                `Field: ${effectiveKernel}x${effectiveKernel}`;
+        }
+        
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+            
+            // Create camera
+            const container = document.getElementById('container');
+            const aspect = container.clientWidth / container.clientHeight;
+            camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+            camera.position.set(20, 15, 20);
+            camera.lookAt(0, 0, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            container.appendChild(renderer.domElement);
+            
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            // Add floor
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x1a237e, // Dark blue
+                transparent: true,
+                opacity: 0.8
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // Initialize sliders
+            initializeSliders();
+            
+            // Calculate initial dimensions
+            calculateDimensions();
+            
+            // Create initial visualization
+            updateVisualization();
+            
+            // Start render loop
+            render();
+        }
+        
+        function onWindowResize() {
+            const container = document.getElementById('container');
+            const aspect = container.clientWidth / container.clientHeight;
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        function initializeSliders() {
+            const sliders = [
+                'image-size', 'input-channels', 'output-channels', 
+                'kernel-size', 'stride', 'padding', 'dilation', 'animation-speed', 'zoom-level'
+            ];
+            
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                
+                // Map slider IDs to their corresponding value span IDs
+                const valueSpanId = id === 'animation-speed' ? 'speed-val' : 
+                                  id === 'zoom-level' ? 'zoom-val' : 
+                                  id + '-val';
+                const valueSpan = document.getElementById(valueSpanId);
+                
+                // Check if elements exist before setting up event handlers
+                if (!slider || !valueSpan) {
+                    console.warn(`Slider or value span not found for: ${id} (looking for ${valueSpanId})`);
+                    return;
+                }
+                
+                slider.oninput = function() {
+                    let value = this.value;
+                    if (id === 'animation-speed') {
+                        valueSpan.textContent = value + 'ms';
+                        animationSpeed = parseInt(value);
+                    } else if (id === 'zoom-level') {
+                        valueSpan.textContent = value;
+                        zoomLevel = parseInt(value);
+                        // No need to update camera here - the render loop handles it automatically
+                    } else {
+                        valueSpan.textContent = value;
+                        const paramName = id.replace('-', '').replace('size', 'Size').replace('channels', 'Channels');
+                        const finalParamName = paramName.charAt(0).toLowerCase() + paramName.slice(1);
+                        params[finalParamName] = parseInt(value);
+                        
+                        // Always update visualization when changing convolution parameters
+                        updateVisualization();
+                    }
+                };
+            });
+        }
+        
+        function clearScene() {
+            // Remove all blocks from scene
+            const allBlocks = [];
+            
+            // Handle image blocks
+            imageBlocks.forEach(channel => {
+                if (Array.isArray(channel)) {
+                    channel.forEach(row => {
+                        if (Array.isArray(row)) {
+                            allBlocks.push(...row);
+                        }
+                    });
+                }
+            });
+            
+            // Handle kernel blocks (now 4D array: [outCh][inCh][i][j])
+            kernelBlocks.forEach(outChannel => {
+                if (Array.isArray(outChannel)) {
+                    outChannel.forEach(inChannel => {
+                        if (Array.isArray(inChannel)) {
+                            inChannel.forEach(row => {
+                                if (Array.isArray(row)) {
+                                    allBlocks.push(...row);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            
+            // Handle output blocks
+            if (Array.isArray(outputBlocks)) {
+                outputBlocks.forEach(channel => {
+                    if (Array.isArray(channel)) {
+                        channel.forEach(row => {
+                            if (Array.isArray(row)) {
+                                allBlocks.push(...row);
+                            }
+                        });
+                    }
+                });
+            }
+            
+            allBlocks.forEach(block => {
+                if (block && scene) {
+                    scene.remove(block);
+                    if (block.geometry) block.geometry.dispose();
+                    if (block.material) block.material.dispose();
+                }
+            });
+            
+            imageBlocks = [];
+            kernelBlocks = [];
+            outputBlocks = [];
+        }
+        
+        function updateVisualization() {
+            if (isAnimating) {
+                pauseAnimation();
+            }
+            
+            clearScene();
+            calculateDimensions();
+            
+            // Generate new data
+            currentImage = generateImage(params.imageSize);
+            currentKernel = generateKernel(params.kernelSize);
+            
+            // Create padded image
+            currentPaddedImage = [];
+            for (let i = 0; i < paddedSize; i++) {
+                currentPaddedImage[i] = [];
+                for (let j = 0; j < paddedSize; j++) {
+                    if (i < params.padding || i >= paddedSize - params.padding || 
+                        j < params.padding || j >= paddedSize - params.padding) {
+                        currentPaddedImage[i][j] = 0;
+                    } else {
+                        currentPaddedImage[i][j] = currentImage[i - params.padding][j - params.padding];
+                    }
+                }
+            }
+            
+            // Set camera position based on scene size and zoom level
+            camera.position.set(zoomLevel, zoomLevel * 0.75, zoomLevel);
+            camera.lookAt(0, 0, 0);
+            
+            // Create new blocks
+            createImageBlocks();
+            createKernelBlocks();
+            createOutputBlocks();
+            
+            // Reset animation state
+            currentStep = 0;
+            updateStepInfo();
+            
+            // Enable start button
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+        
+        function updateStepInfo() {
+            document.getElementById('step-info').textContent = 
+                `Step: ${currentStep}/${totalSteps} - ${isAnimating ? 'Processing' : 'Ready'}`;
+        }
+        
+        function createImageBlocks() {
+            const geometry = new THREE.BoxGeometry(1, 0.2, 1);
+            const channelColors = [
+                0x4CAF50, // Green
+                0x2196F3, // Blue  
+                0xFF9800, // Orange
+                0x9C27B0  // Purple
+            ];
+            
+            for (let ch = 0; ch < params.inputChannels; ch++) {
+                imageBlocks[ch] = [];
+                const channelOffset = ch * 1.0; // Increased spacing between channels
+                
+                for (let i = 0; i < paddedSize; i++) {
+                    imageBlocks[ch][i] = [];
+                    for (let j = 0; j < paddedSize; j++) {
+                        const value = currentPaddedImage[i][j];
+                        const isPadding = (i < params.padding || i >= paddedSize - params.padding || 
+                                         j < params.padding || j >= paddedSize - params.padding);
+                        
+                        // Color based on value and channel
+                        let color;
+                        if (isPadding) {
+                            color = new THREE.Color(0x333333);
+                        } else {
+                            const baseColor = new THREE.Color(channelColors[ch % channelColors.length]);
+                            const intensity = Math.min(1, value / 10);
+                            // Blend base channel color with intensity
+                            color = baseColor.clone().multiplyScalar(0.3 + intensity * 0.7);
+                        }
+                        
+                        const material = new THREE.MeshLambertMaterial({ 
+                            color: color,
+                            transparent: params.inputChannels > 1,
+                            opacity: params.inputChannels > 1 ? 0.9 : 1.0
+                        });
+                        const block = new THREE.Mesh(geometry, material);
+                        
+                        block.position.set(
+                            j - paddedSize/2 + 0.5, 
+                            channelOffset, 
+                            i - paddedSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        block.receiveShadow = true;
+                        
+                        scene.add(block);
+                        imageBlocks[ch][i][j] = block;
+                    }
+                }
+            }
+        }
+        
+        function createKernelBlocks() {
+            const geometry = new THREE.BoxGeometry(0.8, 0.4, 0.8);
+            const kernelColors = [
+                0xff4444, // Red
+                0x44ff44, // Green
+                0x4444ff, // Blue
+                0xffff44  // Yellow
+            ];
+            
+            // Calculate the highest point of input blocks
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2; // Height of top input layer + block height
+            const kernelStartHeight = maxInputChannelHeight + 1.0; // Start kernels 1 unit above highest input
+            
+            // Create kernels for each output channel
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                kernelBlocks[outCh] = [];
+                
+                // Each output channel has kernels for all input channels
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    kernelBlocks[outCh][inCh] = [];
+                    
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        kernelBlocks[outCh][inCh][i] = [];
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            const value = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
+                            
+                            // Base color for this output channel
+                            let baseColor = kernelColors[outCh % kernelColors.length];
+                            let color;
+                            
+                            // Modify color based on kernel value
+                            if (value > 0) {
+                                color = new THREE.Color(baseColor).multiplyScalar(1.2); // Brighter for positive
+                            } else if (value < 0) {
+                                color = new THREE.Color(baseColor).multiplyScalar(0.6); // Darker for negative
+                            } else {
+                                color = new THREE.Color(0x888888); // Gray for zero
+                            }
+                            
+                            const material = new THREE.MeshLambertMaterial({ 
+                                color: color,
+                                transparent: true,
+                                opacity: 0.8
+                            });
+                            const block = new THREE.Mesh(geometry, material);
+                            
+                            // Keep input channel kernels tight together (0.1 spacing)
+                            // But separate output channels by larger amounts
+                            const inputChannelOffset = inCh * 0.5; // Tight spacing for input channels within same output
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0); // Large gap between output channels
+                            
+                            block.position.set(
+                                j - params.kernelSize/2 + 0.5, 
+                                kernelStartHeight + inputChannelOffset + outputChannelOffset,
+                                i - params.kernelSize/2 + 0.5
+                            );
+                            block.castShadow = true;
+                            
+                            scene.add(block);
+                            kernelBlocks[outCh][inCh][i][j] = block;
+                        }
+                    }
+                }
+            }
+        }
+        
+        function createOutputBlocks() {
+            const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9);
+            const outputOffset = paddedSize + 5; // Increased distance from input
+            const outputChannelColors = [
+                0xE91E63, // Pink
+                0x00BCD4, // Cyan
+                0x8BC34A, // Light Green
+                0xFFC107  // Amber
+            ];
+            
+            // Initialize outputBlocks as a proper 3D array
+            outputBlocks = [];
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                outputBlocks[ch] = [];
+                const channelOffset = ch * 1.5; // Much larger spacing between output channels
+                
+                for (let i = 0; i < outputSize; i++) {
+                    outputBlocks[ch][i] = [];
+                    for (let j = 0; j < outputSize; j++) {
+                        const material = new THREE.MeshLambertMaterial({ 
+                            color: outputChannelColors[ch % outputChannelColors.length],
+                            transparent: true,
+                            opacity: 0.3
+                        });
+                        const block = new THREE.Mesh(geometry, material);
+                        
+                        block.position.set(
+                            j + outputOffset - outputSize/2 + 0.5, 
+                            channelOffset, 
+                            i - outputSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        block.receiveShadow = true;
+                        
+                        scene.add(block);
+                        outputBlocks[ch][i][j] = block;
+                    }
+                }
+            }
+        }
+        
+        function updateKernelPosition(step) {
+            const row = Math.floor(step / outputSize) * params.stride;
+            const col = (step % outputSize) * params.stride;
+            
+            // Move kernel blocks for all output channels and input channels
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            const block = kernelBlocks[outCh][inCh][i][j];
+                            const dilatedI = i * params.dilation;
+                            const dilatedJ = j * params.dilation;
+                            const newX = (col + dilatedJ) - paddedSize/2 + 0.5;
+                            const newZ = (row + dilatedI) - paddedSize/2 + 0.5;
+                            
+                            // Use same spacing calculation as creation
+                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+                            const kernelStartHeight = maxInputChannelHeight + 1.0;
+                            const inputChannelOffset = inCh * 0.5;
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
+                            
+                            block.position.x = newX;
+                            block.position.z = newZ;
+                            block.position.y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                        }
+                    }
+                }
+            }
+            
+            // Calculate convolution values for all output channels
+            const convValues = [];
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                let convValue = 0;
+                
+                // Sum over all input channels for this output channel
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            const dilatedI = i * params.dilation;
+                            const dilatedJ = j * params.dilation;
+                            const imgRow = row + dilatedI;
+                            const imgCol = col + dilatedJ;
+                            
+                            if (imgRow < paddedSize && imgCol < paddedSize) {
+                                const imgVal = currentPaddedImage[imgRow][imgCol];
+                                // Each output channel can have different kernel values
+                                const kernVal = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
+                                // Add slight variation per output channel for demonstration
+                                const channelVariation = 1 + (outCh * 0.2);
+                                convValue += imgVal * kernVal * channelVariation;
+                            }
+                        }
+                    }
+                }
+                
+                convValues[outCh] = convValue;
+                
+                // Update output block for this channel
+                const outputRow = Math.floor(step / outputSize);
+                const outputCol = step % outputSize;
+                const outputBlock = outputBlocks[outCh][outputRow][outputCol];
+                
+                // Better color mapping for different types of operations
+                const absValue = Math.abs(convValue);
+                const normalizedValue = Math.min(1, absValue / 20);
+                
+                let color;
+                if (convValue > 3) {
+                    color = new THREE.Color().setHSL(0.15 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
+                } else if (convValue < -3) {
+                    color = new THREE.Color().setHSL(0.55 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
+                } else {
+                    color = new THREE.Color().setHSL(outCh * 0.15, 0.5, 0.3 + normalizedValue * 0.3);
+                }
+                
+                outputBlock.material.color = color;
+                outputBlock.material.opacity = 0.6 + normalizedValue * 0.4;
+            }
+            
+            // Update UI
+            const outputRow = Math.floor(step / outputSize);
+            const outputCol = step % outputSize;
+            document.getElementById('step-info').textContent = `Step: ${step + 1}/${totalSteps} - Processing`;
+            document.getElementById('kernel-pos').textContent = `Position: (${outputRow}, ${outputCol}) -> (${row}, ${col})`;
+            document.getElementById('conv-value').textContent = `Value: ${convValues[0].toFixed(2)}${params.outputChannels > 1 ? ` (+${params.outputChannels-1})` : ''}`;
+            
+            return convValues[0];
+        }
+        
+        function render() {
+            // Slower, gentler camera rotation
+            const time = Date.now() * 0.0002;
+            camera.position.x = Math.cos(time) * zoomLevel;
+            camera.position.z = Math.sin(time) * zoomLevel;
+            camera.position.y = zoomLevel * 0.75 + Math.sin(time * 0.5) * 2;
+            camera.lookAt(0, 0, 0);
+            
+            renderer.render(scene, camera);
+            
+            // Capture frame for video export
+            if (isAnimating) {
+                const canvas = renderer.domElement;
+                frames.push(canvas.toDataURL('image/png'));
+            }
+            
+            requestAnimationFrame(render);
+        }
+        
+        function startAnimation() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            frames = [];
+            
+            // Update button states
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('pause-btn').disabled = false;
+            
+            const animate = () => {
+                if (!isAnimating || currentStep >= totalSteps) {
+                    if (currentStep >= totalSteps) {
+                        document.getElementById('step-info').textContent = `Complete! Steps: ${totalSteps}`;
+                        document.getElementById('start-btn').disabled = false;
+                        document.getElementById('pause-btn').disabled = true;
+                        isAnimating = false;
+                    }
+                    return;
+                }
+                
+                updateKernelPosition(currentStep);
+                currentStep++;
+                
+                setTimeout(animate, animationSpeed);
+            };
+            
+            animate();
+        }
+        
+        function pauseAnimation() {
+            isAnimating = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+        
+        function resetAnimation() {
+            isAnimating = false;
+            currentStep = 0;
+            frames = [];
+            
+            // Calculate the same heights as in creation
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const kernelStartHeight = maxInputChannelHeight + 1.0;
+            
+            // Reset kernel positions to initial position (now 4D array)
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            if (kernelBlocks[outCh] && kernelBlocks[outCh][inCh] && 
+                                kernelBlocks[outCh][inCh][i] && kernelBlocks[outCh][inCh][i][j]) {
+                                const inputChannelOffset = inCh * 0.5;
+                                const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
+                                kernelBlocks[outCh][inCh][i][j].position.set(
+                                    j - params.kernelSize/2 + 0.5, 
+                                    kernelStartHeight + inputChannelOffset + outputChannelOffset, 
+                                    i - params.kernelSize/2 + 0.5
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Reset output blocks to initial state
+            const outputChannelColors = [
+                0xE91E63, // Pink
+                0x00BCD4, // Cyan
+                0x8BC34A, // Light Green
+                0xFFC107  // Amber
+            ];
+            
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                for (let i = 0; i < outputSize; i++) {
+                    for (let j = 0; j < outputSize; j++) {
+                        if (outputBlocks[ch] && outputBlocks[ch][i] && outputBlocks[ch][i][j]) {
+                            outputBlocks[ch][i][j].material.color.setHex(outputChannelColors[ch % outputChannelColors.length]);
+                            outputBlocks[ch][i][j].material.opacity = 0.3;
+                        }
+                    }
+                }
+            }
+            
+            updateStepInfo();
+            document.getElementById('kernel-pos').textContent = 'Position: (0, 0)';
+            document.getElementById('conv-value').textContent = 'Value: 0';
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
