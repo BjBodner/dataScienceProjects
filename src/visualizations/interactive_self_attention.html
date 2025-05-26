@@ -276,7 +276,6 @@
                 <div id="info">
                     <div class="status" id="step-info">Step: 0 - Ready</div>
                     <div class="status" id="current-token">Query Token: 0</div>
-                    <div class="status" id="attention-sum">Attention Sum: 0.00</div>
                     <div id="attention-info">
                         <div>d_model: <span id="dmodel-display">64</span> | Heads: <span id="heads-count">4</span></div>
                         <div>Head dim: <span id="head-dim-display">16</span></div>
@@ -733,9 +732,6 @@
             }
             const avgAttentionSum = totalAttentionSum / params.numHeads;
             
-            document.getElementById('attention-sum').textContent = 
-                `Avg Attention Sum: ${avgAttentionSum.toFixed(3)}`;
-            
             updateTokenList();
         }
         
@@ -836,7 +832,6 @@
             
             updateStepInfo();
             updateTokenList();
-            document.getElementById('attention-sum').textContent = 'Attention Sum: 0.00';
             document.getElementById('start-btn').disabled = false;
             document.getElementById('pause-btn').disabled = true;
         }
