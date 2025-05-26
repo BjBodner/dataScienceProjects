@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Self-Attention Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 8px;
+            gap: 6px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 4px 0;
+            position: relative;
+        }
+        
+        .credit {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-size: 10px;
+            color: #888;
+            font-style: italic;
+        }
+        
+        .header h1 {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+        
+        .header p {
+            font-size: 10px;
+            color: #ccc;
+        }
+        
+        .instructions {
+            text-align: left;
+        }
+        
+        .content {
+            display: flex;
+            flex: 1;
+            gap: 8px;
+            min-height: 0;
+        }
+        
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 300px;
+        }
+        
+        #container {
+            flex: 2;
+            border: 1px solid #333;
+            position: relative;
+            min-height: 300px;
+        }
+        
+        #parameters {
+            background: #333;
+            border-radius: 4px;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        
+        .param-group {
+            background: #444;
+            padding: 6px;
+            border-radius: 3px;
+        }
+        
+        .param-group h3 {
+            margin: 0 0 4px 0;
+            color: #4CAF50;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .slider-container {
+            margin: 3px 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .slider-container label {
+            font-size: 9px;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 16px;
+        }
+        
+        .slider-value {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 9px;
+            min-width: 32px;
+            text-align: right;
+        }
+        
+        #controls {
+            text-align: center;
+            padding: 4px 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 9px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        #info {
+            background: #333;
+            border-radius: 3px;
+            padding: 6px;
+            flex-shrink: 0;
+        }
+        
+        .status {
+            margin: 2px 0;
+            padding: 2px 4px;
+            background: #444;
+            border-radius: 2px;
+            font-size: 9px;
+        }
+        
+        #attention-info {
+            background: #2a5934;
+            padding: 4px;
+            border-radius: 3px;
+            margin-top: 4px;
+            font-size: 9px;
+        }
+        
+        .token-list {
+            background: #2a2a2a;
+            padding: 4px;
+            border-radius: 3px;
+            margin-top: 4px;
+            font-size: 8px;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        
+        .token-item {
+            padding: 2px 4px;
+            margin: 1px 0;
+            border-radius: 2px;
+            background: #444;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .token-active {
+            background: #4CAF50 !important;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            
+            .left-panel {
+                min-width: auto;
+                order: 2;
+            }
+            
+            #container {
+                order: 1;
+                min-height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <div class="credit">Made by Benjy Bodner with Claude</div>
+            <h1>Interactive Self-Attention Visualizer</h1>
+            <div class="instructions">
+                <p>1. Rotate your phone for the best experience.</p>
+                <p>2. Adjust parameters to see how they affect self-attention between tokens.</p>
+                <p>3. Lines show attention flow with thickness proportional to attention scores.</p>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="left-panel">
+                <div id="parameters">
+                    <div class="param-group">
+                        <h3>Model Config</h3>
+                        <div class="slider-container">
+                            <label>Seq Length:</label>
+                            <input type="range" id="seq-length" min="4" max="12" value="8" step="1">
+                            <span id="seq-length-val" class="slider-value">8</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>d_model:</label>
+                            <input type="range" id="d-model" min="32" max="128" value="64" step="32">
+                            <span id="d-model-val" class="slider-value">64</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Num Heads:</label>
+                            <input type="range" id="num-heads" min="1" max="8" value="4" step="1">
+                            <span id="num-heads-val" class="slider-value">4</span>
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <h3>Visualization</h3>
+                        <div class="slider-container">
+                            <label>Speed (FPS):</label>
+                            <input type="range" id="animation-speed" min="0.1" max="2" value="1" step="0.1">
+                            <span id="speed-val" class="slider-value">1.0</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Zoom:</label>
+                            <input type="range" id="zoom-level" min="15" max="50" value="40" step="2">
+                            <span id="zoom-val" class="slider-value">40</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="controls">
+                    <button id="start-btn" onclick="startAnimation()">Start</button>
+                    <button id="pause-btn" onclick="pauseAnimation()">Pause</button>
+                    <button onclick="resetAnimation()">Reset</button>
+                    <button onclick="updateVisualization()">Update</button>
+                </div>
+                
+                <div id="info">
+                    <div class="status" id="step-info">Step: 0 - Ready</div>
+                    <div class="status" id="current-token">Query Token: 0</div>
+                    <div class="status" id="attention-sum">Attention Sum: 0.00</div>
+                    <div id="attention-info">
+                        <div>d_model: <span id="dmodel-display">64</span> | Heads: <span id="heads-count">4</span></div>
+                        <div>Head dim: <span id="head-dim-display">16</span></div>
+                    </div>
+                    <div class="token-list" id="token-list">
+                        <!-- Token list will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+            
+            <div id="container"></div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let tokenBlocks = [];
+        let attentionArrows = [];
+        let currentStep = 0;
+        let isAnimating = false;
+        let animationSpeed = 1000; // Will be calculated from FPS
+        let zoomLevel = 40;
+        
+        let params = {
+            seqLength: 8,
+            dModel: 64,
+            numHeads: 4
+        };
+        
+        let headDim = 16;
+        
+        const sampleTokens = [
+            "The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", 
+            "dog", "and", "runs", "away"
+        ];
+        
+        let tokenEmbeddings = [];
+        let attentionWeights = [];
+        let currentQueryToken = 0;
+        let tokenCenters = [];
+        
+        // Head colors for consistency
+        const headColors = [
+            [1.0, 0.3, 0.3], [0.3, 1.0, 0.3], [0.3, 0.3, 1.0], [1.0, 1.0, 0.3],
+            [1.0, 0.3, 1.0], [0.3, 1.0, 1.0], [1.0, 0.6, 0.3], [0.6, 0.3, 1.0]
+        ];
+        
+        function updateHeadDim() {
+            headDim = Math.floor(params.dModel / params.numHeads);
+        }
+        
+        function generateEmbeddings() {
+            tokenEmbeddings = [];
+            for (let i = 0; i < params.seqLength; i++) {
+                const embedding = [];
+                for (let d = 0; d < params.dModel; d++) {
+                    let value = Math.random() * 2 - 1;
+                    if (i < params.seqLength / 2) {
+                        value += Math.sin(d * 0.1) * 0.5;
+                    } else {
+                        value += Math.cos(d * 0.1) * 0.5;
+                    }
+                    embedding.push(value);
+                }
+                tokenEmbeddings.push(embedding);
+            }
+        }
+        
+        function calculateAttention() {
+            updateHeadDim();
+            attentionWeights = [];
+            
+            for (let h = 0; h < params.numHeads; h++) {
+                attentionWeights[h] = [];
+                
+                const headQueries = [];
+                const headKeys = [];
+                
+                for (let i = 0; i < params.seqLength; i++) {
+                    const startIdx = h * headDim;
+                    const endIdx = Math.min(startIdx + headDim, params.dModel);
+                    const q = tokenEmbeddings[i].slice(startIdx, endIdx);
+                    const k = tokenEmbeddings[i].slice(startIdx, endIdx);
+                    
+                    const transformedQ = q.map(x => x + (Math.random() - 0.5) * 0.2);
+                    const transformedK = k.map(x => x + (Math.random() - 0.5) * 0.2);
+                    
+                    headQueries.push(transformedQ);
+                    headKeys.push(transformedK);
+                }
+                
+                for (let i = 0; i < params.seqLength; i++) {
+                    attentionWeights[h][i] = [];
+                    let sum = 0;
+                    
+                    for (let j = 0; j < params.seqLength; j++) {
+                        let score = 0;
+                        const actualHeadDim = Math.min(headDim, headQueries[i].length);
+                        for (let d = 0; d < actualHeadDim; d++) {
+                            score += headQueries[i][d] * headKeys[j][d];
+                        }
+                        score = score / Math.sqrt(actualHeadDim);
+                        attentionWeights[h][i][j] = Math.exp(score);
+                        sum += attentionWeights[h][i][j];
+                    }
+                    
+                    for (let j = 0; j < params.seqLength; j++) {
+                        attentionWeights[h][i][j] /= sum;
+                    }
+                }
+            }
+        }
+        
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            const container = document.getElementById('container');
+            const aspect = container.clientWidth / container.clientHeight;
+            camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+            camera.position.set(20, 15, 20);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            container.appendChild(renderer.domElement);
+            
+            window.addEventListener('resize', onWindowResize);
+            
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            const pointLight1 = new THREE.PointLight(0x4CAF50, 0.3, 50);
+            pointLight1.position.set(10, 5, 0);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0x2196F3, 0.3, 50);
+            pointLight2.position.set(-10, 5, 0);
+            scene.add(pointLight2);
+            
+            initializeSliders();
+            generateEmbeddings();
+            calculateAttention();
+            updateVisualization();
+            render();
+        }
+        
+        function onWindowResize() {
+            const container = document.getElementById('container');
+            const aspect = container.clientWidth / container.clientHeight;
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        function initializeSliders() {
+            const sliders = ['seq-length', 'd-model', 'num-heads', 'animation-speed', 'zoom-level'];
+            
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpanId = id === 'animation-speed' ? 'speed-val' : 
+                                  id === 'zoom-level' ? 'zoom-val' : 
+                                  id + '-val';
+                const valueSpan = document.getElementById(valueSpanId);
+                
+                if (!slider || !valueSpan) return;
+                
+                slider.oninput = function() {
+                    let value = parseFloat(this.value);
+                    
+                    if (id === 'animation-speed') {
+                        valueSpan.textContent = value.toFixed(1);
+                        animationSpeed = 1000 / value; // Convert FPS to milliseconds
+                    } else if (id === 'zoom-level') {
+                        valueSpan.textContent = value;
+                        zoomLevel = parseInt(value);
+                    } else {
+                        valueSpan.textContent = value;
+                        let paramName;
+                        if (id === 'seq-length') paramName = 'seqLength';
+                        else if (id === 'd-model') paramName = 'dModel';
+                        else if (id === 'num-heads') paramName = 'numHeads';
+                        
+                        params[paramName] = parseInt(value);
+                        updateVisualization();
+                    }
+                };
+            });
+        }
+        
+        function clearScene() {
+            tokenBlocks.forEach(tokenArray => {
+                if (tokenArray) {
+                    tokenArray.forEach(headArray => {
+                        if (headArray) {
+                            headArray.forEach(block => {
+                                if (block && scene) {
+                                    scene.remove(block);
+                                    if (block.geometry) block.geometry.dispose();
+                                    if (block.material) block.material.dispose();
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            
+            attentionArrows.forEach(arrow => {
+                if (arrow && scene) {
+                    scene.remove(arrow);
+                    if (arrow.geometry) arrow.geometry.dispose();
+                    if (arrow.material) arrow.material.dispose();
+                }
+            });
+            
+            tokenBlocks = [];
+            attentionArrows = [];
+            tokenCenters = [];
+        }
+        
+        function createTokenBlocks() {
+            tokenBlocks = [];
+            tokenCenters = [];
+            updateHeadDim();
+            
+            const blockWidth = 1.0;
+            const blockHeight = 0.15;
+            const blockDepth = 1.0;
+            const headSeparation = 0.1;
+            
+            for (let i = 0; i < params.seqLength; i++) {
+                tokenBlocks[i] = [];
+                tokenCenters[i] = [];
+                
+                const angle = (i / params.seqLength) * Math.PI * 2;
+                const radius = Math.max(6, params.seqLength * 0.9);
+                const baseX = Math.cos(angle) * radius;
+                const baseZ = Math.sin(angle) * radius;
+                
+                let currentY = 0;
+                
+                for (let h = 0; h < params.numHeads; h++) {
+                    tokenBlocks[i][h] = [];
+                    const headColor = headColors[h % headColors.length];
+                    
+                    let headCenter = new THREE.Vector3(0, 0, 0);
+                    let blockCount = 0;
+                    
+                    for (let d = 0; d < headDim; d++) {
+                        const colorVariation = 0.8 + (d / headDim) * 0.4;
+                        const color = new THREE.Color(
+                            headColor[0] * colorVariation,
+                            headColor[1] * colorVariation,
+                            headColor[2] * colorVariation
+                        );
+                        
+                        const geometry = new THREE.BoxGeometry(blockWidth, blockHeight, blockDepth);
+                        const material = new THREE.MeshLambertMaterial({ 
+                            color: color,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        
+                        const block = new THREE.Mesh(geometry, material);
+                        block.position.set(baseX, currentY, baseZ);
+                        currentY += blockHeight;
+                        
+                        block.castShadow = true;
+                        block.receiveShadow = true;
+                        
+                        block.userData = {
+                            originalPosition: block.position.clone(),
+                            originalColor: color.clone(),
+                            tokenIndex: i,
+                            headIndex: h,
+                            dimensionIndex: d
+                        };
+                        
+                        scene.add(block);
+                        tokenBlocks[i][h][d] = block;
+                        
+                        headCenter.add(block.position);
+                        blockCount++;
+                    }
+                    
+                    headCenter.divideScalar(blockCount);
+                    tokenCenters[i][h] = headCenter;
+                    
+                    currentY += headSeparation;
+                }
+            }
+        }
+        
+        function createArrow(startPos, endPos, headIndex, attention) {
+            const direction = new THREE.Vector3().subVectors(endPos, startPos);
+            const length = direction.length();
+            
+            if (length < 0.1) return null;
+            
+            const headColor = headColors[headIndex % headColors.length];
+            const color = new THREE.Color(headColor[0], headColor[1], headColor[2]);
+            
+            // Create arrow using line geometry with thick appearance
+            const points = [];
+            const steps = 10;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const point = new THREE.Vector3().lerpVectors(startPos, endPos, t);
+                points.push(point);
+            }
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            // Use attention-based opacity formula
+            const opacity = Math.max(0.1, Math.min(1.0, 1 - (attention / 0.15)));
+            
+            const material = new THREE.LineBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                linewidth: 20 // Fixed line width of 20 for all arrows
+            });
+            
+            const line = new THREE.Line(geometry, material);
+            return line;
+        }
+        
+        function updateTokenList() {
+            const tokenList = document.getElementById('token-list');
+            tokenList.innerHTML = '';
+            
+            for (let i = 0; i < params.seqLength; i++) {
+                const tokenItem = document.createElement('div');
+                tokenItem.className = 'token-item';
+                if (i === currentQueryToken) {
+                    tokenItem.classList.add('token-active');
+                }
+                
+                const tokenText = sampleTokens[i % sampleTokens.length];
+                // Show average attention across all heads
+                let avgAttention = 0;
+                for (let h = 0; h < params.numHeads; h++) {
+                    avgAttention += attentionWeights[h][currentQueryToken][i];
+                }
+                avgAttention /= params.numHeads;
+                
+                tokenItem.innerHTML = `
+                    <span>${i}: "${tokenText}"</span>
+                    <span>${(avgAttention * 100).toFixed(1)}%</span>
+                `;
+                
+                tokenList.appendChild(tokenItem);
+            }
+        }
+        
+        function updateInfoDisplay() {
+            updateHeadDim();
+            document.getElementById('dmodel-display').textContent = params.dModel;
+            document.getElementById('heads-count').textContent = params.numHeads;
+            document.getElementById('head-dim-display').textContent = headDim;
+        }
+        
+        function updateStepInfo() {
+            document.getElementById('step-info').textContent = 
+                `Step: ${currentStep} - ${isAnimating ? 'Animating' : 'Ready'}`;
+            document.getElementById('current-token').textContent = 
+                `Query Token: ${currentQueryToken} ("${sampleTokens[currentQueryToken % sampleTokens.length]}")`;
+        }
+        
+        function animateAttention(queryToken) {
+            currentQueryToken = queryToken;
+            
+            // Clear previous arrows
+            attentionArrows.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            attentionArrows = [];
+            
+            // Reset all blocks to original state (keep original colors for non-query tokens)
+            for (let i = 0; i < params.seqLength; i++) {
+                for (let h = 0; h < params.numHeads; h++) {
+                    for (let d = 0; d < headDim; d++) {
+                        const block = tokenBlocks[i][h][d];
+                        block.material.color.copy(block.userData.originalColor);
+                        block.material.opacity = 0.8;
+                        block.scale.set(1, 1, 1);
+                    }
+                }
+            }
+            
+            // Highlight query token
+            for (let h = 0; h < params.numHeads; h++) {
+                for (let d = 0; d < headDim; d++) {
+                    const queryBlock = tokenBlocks[queryToken][h][d];
+                    queryBlock.material.color.setHex(0xFFD700);
+                    queryBlock.material.opacity = 1.0;
+                    queryBlock.scale.set(1.1, 1.1, 1.1);
+                }
+            }
+            
+            // Show attention for all heads with equal thickness
+            for (let h = 0; h < params.numHeads; h++) {
+                for (let i = 0; i < params.seqLength; i++) {
+                    if (i === queryToken) continue;
+                    
+                    const attention = attentionWeights[h][queryToken][i];
+                    
+                    // Only modify blocks that are receiving attention (key blocks)
+                    // Keep original head colors for all non-query tokens
+                    for (let d = 0; d < headDim; d++) {
+                        const keyBlock = tokenBlocks[i][h][d];
+                        
+                        // Scale based on attention but keep original head color
+                        const scale = 1 + attention * 0.5;
+                        keyBlock.scale.set(scale, scale, scale);
+                        
+                        // Keep original color but adjust opacity based on attention
+                        keyBlock.material.opacity = 0.8 + attention * 0.2;
+                    }
+                    
+                    // Create attention arrows with opacity-based visualization
+                    if (attention > 0.05) {
+                        const queryCenter = tokenCenters[queryToken][h];
+                        const keyCenter = tokenCenters[i][h];
+                        
+                        // Pass attention score to createArrow for opacity calculation
+                        const arrow = createArrow(queryCenter, keyCenter, h, attention);
+                        
+                        if (arrow) {
+                            scene.add(arrow);
+                            attentionArrows.push(arrow);
+                        }
+                    }
+                }
+            }
+            
+            // Calculate average attention sum across all heads
+            let totalAttentionSum = 0;
+            for (let h = 0; h < params.numHeads; h++) {
+                totalAttentionSum += attentionWeights[h][queryToken].reduce((sum, val) => sum + val, 0);
+            }
+            const avgAttentionSum = totalAttentionSum / params.numHeads;
+            
+            document.getElementById('attention-sum').textContent = 
+                `Avg Attention Sum: ${avgAttentionSum.toFixed(3)}`;
+            
+            updateTokenList();
+        }
+        
+        function updateVisualization() {
+            if (isAnimating) {
+                pauseAnimation();
+            }
+            
+            clearScene();
+            generateEmbeddings();
+            calculateAttention();
+            
+            const towerHeight = params.dModel * 0.15 + params.numHeads * 0.1;
+            // Invert zoom: higher values = closer to objects
+            const adjustedZoom = Math.max(10, 65 - zoomLevel + towerHeight * 0.5);
+            camera.position.set(adjustedZoom, adjustedZoom * 0.6 + towerHeight * 0.4, adjustedZoom);
+            camera.lookAt(0, towerHeight * 0.4, 0);
+            
+            createTokenBlocks();
+            updateTokenList();
+            updateInfoDisplay();
+            
+            currentStep = 0;
+            currentQueryToken = 0;
+            updateStepInfo();
+            
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+        
+        function render() {
+            const time = Date.now() * 0.0001; // Reduced rotation speed
+            const towerHeight = params.dModel * 0.15 + params.numHeads * 0.1;
+            // Invert zoom: higher values = closer to objects
+            const adjustedZoom = Math.max(10, 65 - zoomLevel + towerHeight * 0.5);
+            
+            camera.position.x = Math.cos(time) * adjustedZoom;
+            camera.position.z = Math.sin(time) * adjustedZoom;
+            camera.position.y = adjustedZoom * 0.6 + towerHeight * 0.4 + Math.sin(time * 0.7) * 2;
+            camera.lookAt(0, towerHeight * 0.4, 0);
+            
+            renderer.render(scene, camera);
+            requestAnimationFrame(render);
+        }
+        
+        function startAnimation() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            currentStep = 0;
+            
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('pause-btn').disabled = false;
+            
+            const animate = () => {
+                if (!isAnimating) return;
+                
+                const queryToken = currentStep % params.seqLength;
+                animateAttention(queryToken);
+                updateStepInfo();
+                
+                currentStep++;
+                setTimeout(animate, animationSpeed);
+            };
+            
+            animate();
+        }
+        
+        function pauseAnimation() {
+            isAnimating = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+            updateStepInfo();
+        }
+        
+        function resetAnimation() {
+            isAnimating = false;
+            currentStep = 0;
+            currentQueryToken = 0;
+            
+            attentionArrows.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            attentionArrows = [];
+            
+            for (let i = 0; i < params.seqLength; i++) {
+                for (let h = 0; h < params.numHeads; h++) {
+                    for (let d = 0; d < headDim; d++) {
+                        const block = tokenBlocks[i][h][d];
+                        block.material.color.copy(block.userData.originalColor);
+                        block.material.opacity = 0.8;
+                        block.scale.set(1, 1, 1);
+                    }
+                }
+            }
+            
+            updateStepInfo();
+            updateTokenList();
+            document.getElementById('attention-sum').textContent = 'Attention Sum: 0.00';
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+        
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
