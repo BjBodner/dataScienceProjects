@@ -32,6 +32,7 @@
         .header {
             text-align: center;
             padding: 4px 0;
+            position: relative;
         }
         
         .header h1 {
@@ -43,9 +44,41 @@
             font-size: 10px;
             color: #ccc;
         }
+
+        .header .credit {
+            position: absolute;
+            top: 20px;
+            right: 0;
+            font-size: 9px;
+            color: #888;
+            text-align: right;
+        }
+
         .instructions {
-    		text-align: left;
-	}
+            text-align: left;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin: 4px 0;
+        }
+
+        .nav-links a {
+            color: #4CAF50;
+            text-decoration: none;
+            margin: 0 8px;
+            font-size: 10px;
+            padding: 2px 6px;
+            border: 1px solid #4CAF50;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .nav-links a:hover {
+            background: #4CAF50;
+            color: white;
+        }
+        
         .content {
             display: flex;
             flex: 1;
@@ -214,6 +247,13 @@
             .header h1 {
                 font-size: 14px;
             }
+
+            .header .credit {
+                position: absolute;
+                top: 20px;
+                right: 0;
+                text-align: right;
+            }
         }
         
         @media (max-width: 480px) {
@@ -292,16 +332,28 @@
                 padding: 2px 4px;
                 font-size: 7px;
             }
+
+            .header .credit {
+                position: absolute;
+                top: 20px;
+                right: 0;
+                text-align: right;
+            }
         }
     </style>
 </head>
 <body>
     <div class="main-container">
     <div class="header">
+        <div class="credit">Made by Benjy Bodner<br>with Claude</div>
         <h1>Interactive 3D Convolution Visualizer</h1>
         <div class="instructions">
             <p>1. Rotate phone sideways for best experience.</p>
             <p>2. Adjust parameters to see how different convolution settings affect the operation.</p>
+        </div>
+        <div class="nav-links">
+            <a href="../index.html">← Back to Main</a>
+            <a href="https://www.youtube.com/watch?v=KuXjwB4LzSA" target="_blank">What Is A Convolution?</a>
         </div>
     </div>
         
@@ -340,6 +392,11 @@
                             <span id="output-channels-val" class="slider-value">1</span>
                         </div>
                         <div class="slider-container">
+                            <label>Stride:</label>
+                            <input type="range" id="stride" min="1" max="3" value="1" step="1">
+                            <span id="stride-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
                             <label>Dilation:</label>
                             <input type="range" id="dilation" min="1" max="3" value="1" step="1">
                             <span id="dilation-val" class="slider-value">1</span>
@@ -347,12 +404,7 @@
                     </div>
                     
                     <div class="param-group">
-                        <h3>Operation</h3>
-                        <div class="slider-container">
-                            <label>Stride:</label>
-                            <input type="range" id="stride" min="1" max="3" value="1" step="1">
-                            <span id="stride-val" class="slider-value">1</span>
-                        </div>
+                        <h3>View Controls</h3>
                         <div class="slider-container">
                             <label>Speed:</label>
                             <input type="range" id="animation-speed" min="200" max="2000" value="800" step="100">
@@ -360,8 +412,8 @@
                         </div>
                         <div class="slider-container">
                             <label>Zoom:</label>
-                            <input type="range" id="zoom-level" min="10" max="50" value="25" step="2">
-                            <span id="zoom-val" class="slider-value">25</span>
+                            <input type="range" id="zoom-level" min="1" max="10" value="9" step="1">
+                            <span id="zoom-val" class="slider-value">9</span>
                         </div>
                     </div>
                 </div>
@@ -398,7 +450,7 @@
         let isAnimating = false;
         let frames = [];
         let animationSpeed = 800;
-        let zoomLevel = 25;
+        let zoomLevel = 9; // Changed default to high zoom (close)
         let currentImage, currentKernel, currentPaddedImage;
         
         // Convolution parameters
@@ -583,8 +635,9 @@
                         animationSpeed = parseInt(value);
                     } else if (id === 'zoom-level') {
                         valueSpan.textContent = value;
-                        zoomLevel = parseInt(value);
-                        // No need to update camera here - the render loop handles it automatically
+                        // Invert zoom: high slider value = close (low zoom number)
+                        // Map 1-10 slider to 50-10 camera distance
+                        zoomLevel = 60 - (parseInt(value) * 5); // Invert the scale
                     } else {
                         valueSpan.textContent = value;
                         const paramName = id.replace('-', '').replace('size', 'Size').replace('channels', 'Channels');
