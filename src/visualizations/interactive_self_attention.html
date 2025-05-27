@@ -16,7 +16,7 @@
             background: #1a1a1a;
             color: white;
             font-family: Arial, sans-serif;
-            font-size: 11px;
+            font-size: 13px;
             height: 100vh;
             overflow: hidden;
         }
@@ -39,23 +39,44 @@
             position: absolute;
             top: 4px;
             right: 8px;
-            font-size: 10px;
+            font-size: 12px;
             color: #888;
             font-style: italic;
         }
         
         .header h1 {
-            font-size: 16px;
+            font-size: 20px;
             margin-bottom: 2px;
         }
         
         .header p {
-            font-size: 10px;
+            font-size: 12px;
             color: #ccc;
         }
         
         .instructions {
             text-align: left;
+        }
+        
+        .nav-links {
+            text-align: center;
+            margin: 4px 0;
+        }
+        
+        .nav-links a {
+            color: #4CAF50;
+            text-decoration: none;
+            margin: 0 8px;
+            font-size: 12px;
+            padding: 2px 6px;
+            border: 1px solid #4CAF50;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        
+        .nav-links a:hover {
+            background: #4CAF50;
+            color: white;
         }
         
         .content {
@@ -98,7 +119,7 @@
         .param-group h3 {
             margin: 0 0 4px 0;
             color: #4CAF50;
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
         }
         
@@ -110,7 +131,7 @@
         }
         
         .slider-container label {
-            font-size: 9px;
+            font-size: 11px;
             white-space: nowrap;
             min-width: 60px;
         }
@@ -123,7 +144,7 @@
         .slider-value {
             color: #4CAF50;
             font-weight: bold;
-            font-size: 9px;
+            font-size: 11px;
             min-width: 32px;
             text-align: right;
         }
@@ -141,7 +162,7 @@
             margin: 2px;
             cursor: pointer;
             border-radius: 3px;
-            font-size: 9px;
+            font-size: 11px;
         }
         
         button:hover {
@@ -165,7 +186,7 @@
             padding: 2px 4px;
             background: #444;
             border-radius: 2px;
-            font-size: 9px;
+            font-size: 11px;
         }
         
         #attention-info {
@@ -173,7 +194,7 @@
             padding: 4px;
             border-radius: 3px;
             margin-top: 4px;
-            font-size: 9px;
+            font-size: 11px;
         }
         
         .token-list {
@@ -181,9 +202,63 @@
             padding: 4px;
             border-radius: 3px;
             margin-top: 4px;
-            font-size: 8px;
-            max-height: 80px;
+            font-size: 10px;
+            max-height: 200px;
             overflow-y: auto;
+            border: 1px solid #444;
+        }
+        
+        .attention-table-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+        
+        .attention-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+        }
+        
+        .attention-table th {
+            background: #3a3a3a;
+            padding: 2px 4px;
+            border: 1px solid #555;
+            text-align: center;
+            font-weight: bold;
+            color: #ddd;
+        }
+        
+        .attention-table td {
+            padding: 2px 4px;
+            border: 1px solid #555;
+            text-align: center;
+        }
+        
+        .token-cell {
+            text-align: left !important;
+            font-weight: bold;
+            max-width: 50px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .attention-cell {
+            font-weight: bold;
+            min-width: 35px;
+        }
+        
+        .query-row {
+            background: #4CAF50 !important;
+            color: white;
+        }
+        
+        .query-row td {
+            background: #4CAF50 !important;
+            color: white;
         }
         
         .token-item {
@@ -192,12 +267,35 @@
             border-radius: 2px;
             background: #444;
             display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease;
+        }
+        
+        .token-header {
+            display: flex;
             justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+        
+        .token-heads {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
+            gap: 2px;
+            font-size: 9px;
+        }
+        
+        .head-score {
+            padding: 1px 3px;
+            border-radius: 2px;
+            text-align: center;
+            font-weight: bold;
         }
         
         .token-active {
             background: #4CAF50 !important;
             color: white;
+            font-weight: bold;
         }
         
         @media (max-width: 768px) {
@@ -226,6 +324,10 @@
                 <p>1. Rotate your phone for the best experience.</p>
                 <p>2. Adjust parameters to see how they affect self-attention between tokens.</p>
                 <p>3. Lines show attention flow with thickness proportional to attention scores.</p>
+            </div>
+            <div class="nav-links">
+                <a href="../index.html">← Back to Main</a>
+                <a href="https://www.youtube.com/watch?v=eMlx5fFNoYc" target="_blank">What's Self Attention?</a>
             </div>
         </div>
         
@@ -316,6 +418,8 @@
         let attentionWeights = [];
         let currentQueryToken = 0;
         let tokenCenters = [];
+        
+        let headsDisplayed = 4; // Number of heads to show in token list
         
         // Head colors for consistency
         const headColors = [
@@ -448,11 +552,14 @@
             sliders.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpanId = id === 'animation-speed' ? 'speed-val' : 
-                                  id === 'zoom-level' ? 'zoom-val' : 
+                                  id === 'zoom-level' ? 'zoom-val' :
                                   id + '-val';
                 const valueSpan = document.getElementById(valueSpanId);
                 
                 if (!slider || !valueSpan) return;
+                
+                // Set initial values
+                valueSpan.textContent = slider.value;
                 
                 slider.oninput = function() {
                     let value = parseFloat(this.value);
@@ -471,6 +578,7 @@
                         else if (id === 'num-heads') paramName = 'numHeads';
                         
                         params[paramName] = parseInt(value);
+                        
                         updateVisualization();
                     }
                 };
@@ -614,32 +722,152 @@
             return line;
         }
         
+        function getAttentionColor(attention) {
+            // Convert attention percentage (3-30%) to a color
+            // Normalize to 0-1 range based on typical attention range
+            const minAttention = 0.03; // 3%
+            const maxAttention = 0.30; // 30%
+            
+            // Clamp and normalize the attention value
+            const normalizedAttention = Math.max(0, Math.min(1, 
+                (attention - minAttention) / (maxAttention - minAttention)
+            ));
+            
+            // Create a heat map from dark blue (low) to bright red (high)
+            let r, g, b;
+            
+            if (normalizedAttention < 0.5) {
+                // Dark blue to yellow transition
+                const t = normalizedAttention * 2; // 0 to 1
+                r = Math.floor(30 + t * 100); // 30 to 130
+                g = Math.floor(30 + t * 100); // 30 to 130  
+                b = Math.floor(80 + t * 50);  // 80 to 130
+            } else {
+                // Yellow to bright red transition
+                const t = (normalizedAttention - 0.5) * 2; // 0 to 1
+                r = Math.floor(130 + t * 125); // 130 to 255
+                g = Math.floor(130 - t * 80);  // 130 to 50
+                b = Math.floor(130 - t * 100); // 130 to 30
+            }
+            
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
+        function getHeadAttentionColor(attention) {
+            // Similar to main attention color but with different range for individual heads
+            const minAttention = 0.01; // 1%
+            const maxAttention = 0.40; // 40%
+            
+            const normalizedAttention = Math.max(0, Math.min(1, 
+                (attention - minAttention) / (maxAttention - minAttention)
+            ));
+            
+            // Simpler color scheme for small head indicators
+            let r, g, b;
+            
+            if (normalizedAttention < 0.3) {
+                // Dark to medium blue
+                r = 40;
+                g = 60;
+                b = Math.floor(100 + normalizedAttention * 400);
+            } else if (normalizedAttention < 0.7) {
+                // Blue to yellow
+                const t = (normalizedAttention - 0.3) / 0.4;
+                r = Math.floor(40 + t * 160);
+                g = Math.floor(60 + t * 140);
+                b = Math.floor(200 - t * 120);
+            } else {
+                // Yellow to red
+                const t = (normalizedAttention - 0.7) / 0.3;
+                r = Math.floor(200 + t * 55);
+                g = Math.floor(200 - t * 150);
+                b = Math.floor(80 - t * 50);
+            }
+            
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
         function updateTokenList() {
             const tokenList = document.getElementById('token-list');
             tokenList.innerHTML = '';
             
-            for (let i = 0; i < params.seqLength; i++) {
-                const tokenItem = document.createElement('div');
-                tokenItem.className = 'token-item';
-                if (i === currentQueryToken) {
-                    tokenItem.classList.add('token-active');
-                }
-                
-                const tokenText = sampleTokens[i % sampleTokens.length];
-                // Show average attention across all heads
-                let avgAttention = 0;
-                for (let h = 0; h < params.numHeads; h++) {
-                    avgAttention += attentionWeights[h][currentQueryToken][i];
-                }
-                avgAttention /= params.numHeads;
-                
-                tokenItem.innerHTML = `
-                    <span>${i}: "${tokenText}"</span>
-                    <span>${(avgAttention * 100).toFixed(1)}%</span>
-                `;
-                
-                tokenList.appendChild(tokenItem);
+            // Add title
+            const title = document.createElement('div');
+            title.className = 'attention-table-title';
+            title.textContent = 'Attention Scores';
+            tokenList.appendChild(title);
+            
+            // Create table
+            const table = document.createElement('table');
+            table.className = 'attention-table';
+            
+            // Create header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // Token column header
+            const tokenHeader = document.createElement('th');
+            tokenHeader.textContent = 'Token';
+            headerRow.appendChild(tokenHeader);
+            
+            // Head columns headers
+            const headsToShow = Math.min(headsDisplayed, params.numHeads);
+            for (let h = 0; h < headsToShow; h++) {
+                const headHeader = document.createElement('th');
+                headHeader.textContent = `Head${h + 1}`;
+                headerRow.appendChild(headHeader);
             }
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create body
+            const tbody = document.createElement('tbody');
+            
+            for (let i = 0; i < params.seqLength; i++) {
+                const row = document.createElement('tr');
+                
+                // Apply query token styling
+                if (i === currentQueryToken) {
+                    row.className = 'query-row';
+                }
+                
+                // Token name cell
+                const tokenCell = document.createElement('td');
+                tokenCell.className = 'token-cell';
+                const tokenText = sampleTokens[i % sampleTokens.length];
+                tokenCell.textContent = `${i}: "${tokenText}"`;
+                row.appendChild(tokenCell);
+                
+                // Head attention cells
+                for (let h = 0; h < headsToShow; h++) {
+                    const attentionCell = document.createElement('td');
+                    attentionCell.className = 'attention-cell';
+                    
+                    if (i === currentQueryToken) {
+                        // Query token - show self-attention
+                        const selfAttention = attentionWeights[h][currentQueryToken][i];
+                        attentionCell.textContent = `${(selfAttention * 100).toFixed(0)}%`;
+                    } else {
+                        // Other tokens - show attention from query
+                        const headAttention = attentionWeights[h][currentQueryToken][i];
+                        
+                        // Apply color based on attention score
+                        const headBgColor = getHeadAttentionColor(headAttention);
+                        attentionCell.style.backgroundColor = headBgColor;
+                        attentionCell.style.color = headAttention > 0.2 ? 'white' : '#ddd';
+                        
+                        attentionCell.textContent = `${(headAttention * 100).toFixed(0)}%`;
+                    }
+                    
+                    row.appendChild(attentionCell);
+                }
+                
+                tbody.appendChild(row);
+            }
+            
+            table.appendChild(tbody);
+            tokenList.appendChild(table);
         }
         
         function updateInfoDisplay() {
