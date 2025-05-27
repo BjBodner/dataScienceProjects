@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Convolution Visualization</title>
+    <title>Interactive Conv2D Visualization</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         * {
@@ -15,8 +15,8 @@
         body {
             background: #1a1a1a;
             color: white;
-            font-family: Arial, sans-serif;
-            font-size: 11px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 22px;
             height: 100vh;
             overflow: hidden;
         }
@@ -36,12 +36,12 @@
         }
         
         .header h1 {
-            font-size: 16px;
+            font-size: 2.5rem;
             margin-bottom: 2px;
         }
         
         .header p {
-            font-size: 10px;
+            font-size: 14px;
             color: #ccc;
         }
 
@@ -49,7 +49,7 @@
             position: absolute;
             top: 20px;
             right: 0;
-            font-size: 9px;
+            font-size: 12px;
             color: #888;
             text-align: right;
         }
@@ -67,7 +67,7 @@
             color: #4CAF50;
             text-decoration: none;
             margin: 0 8px;
-            font-size: 10px;
+            font-size: 13px;
             padding: 2px 6px;
             border: 1px solid #4CAF50;
             border-radius: 3px;
@@ -119,7 +119,7 @@
         .param-group h3 {
             margin: 0 0 4px 0;
             color: #4CAF50;
-            font-size: 10px;
+            font-size: 13px;
             font-weight: bold;
         }
         
@@ -131,7 +131,7 @@
         }
         
         .slider-container label {
-            font-size: 9px;
+            font-size: 12px;
             white-space: nowrap;
             min-width: 60px;
         }
@@ -144,7 +144,7 @@
         .slider-value {
             color: #4CAF50;
             font-weight: bold;
-            font-size: 9px;
+            font-size: 12px;
             min-width: 32px;
             text-align: right;
         }
@@ -162,7 +162,7 @@
             margin: 2px;
             cursor: pointer;
             border-radius: 3px;
-            font-size: 9px;
+            font-size: 12px;
         }
         
         button:hover {
@@ -186,7 +186,7 @@
             padding: 2px 4px;
             background: #444;
             border-radius: 2px;
-            font-size: 9px;
+            font-size: 12px;
         }
         
         #output-info {
@@ -194,7 +194,7 @@
             padding: 4px;
             border-radius: 3px;
             margin-top: 4px;
-            font-size: 9px;
+            font-size: 12px;
         }
         
         /* Mobile optimizations */
@@ -231,7 +231,7 @@
             
             .slider-container label {
                 min-width: auto;
-                font-size: 8px;
+                font-size: 11px;
             }
             
             .slider-value {
@@ -241,11 +241,11 @@
             
             button {
                 padding: 6px 10px;
-                font-size: 10px;
+                font-size: 13px;
             }
             
             .header h1 {
-                font-size: 14px;
+                font-size: 2.2rem;
             }
 
             .header .credit {
@@ -267,19 +267,19 @@
             }
             
             .param-group h3 {
-                font-size: 9px;
+                font-size: 12px;
             }
             
             .slider-container label,
             .slider-value,
             .status,
             #output-info {
-                font-size: 8px;
+                font-size: 11px;
             }
             
             button {
                 padding: 4px 6px;
-                font-size: 8px;
+                font-size: 11px;
                 margin: 1px;
             }
         }
@@ -310,7 +310,7 @@
             }
             
             .param-group h3 {
-                font-size: 8px;
+                font-size: 11px;
                 margin-bottom: 2px;
             }
             
@@ -320,17 +320,17 @@
             
             .slider-container label,
             .slider-value {
-                font-size: 7px;
+                font-size: 10px;
             }
             
             .status,
             #output-info {
-                font-size: 7px;
+                font-size: 10px;
             }
             
             button {
                 padding: 2px 4px;
-                font-size: 7px;
+                font-size: 10px;
             }
 
             .header .credit {
@@ -363,14 +363,14 @@
                     <div class="param-group">
                         <h3>Input Config</h3>
                         <div class="slider-container">
-                            <label>Size:</label>
-                            <input type="range" id="image-size" min="3" max="12" value="7" step="1">
-                            <span id="image-size-val" class="slider-value">7</span>
-                        </div>
-                        <div class="slider-container">
                             <label>Input Channels:</label>
                             <input type="range" id="input-channels" min="1" max="4" value="1" step="1">
                             <span id="input-channels-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Size:</label>
+                            <input type="range" id="image-size" min="3" max="12" value="7" step="1">
+                            <span id="image-size-val" class="slider-value">7</span>
                         </div>
                         <div class="slider-container">
                             <label>Padding:</label>
@@ -382,14 +382,14 @@
                     <div class="param-group">
                         <h3>Kernel Config</h3>
                         <div class="slider-container">
-                            <label>Size:</label>
-                            <input type="range" id="kernel-size" min="1" max="7" value="3" step="2">
-                            <span id="kernel-size-val" class="slider-value">3</span>
-                        </div>
-                        <div class="slider-container">
                             <label>Output Channels:</label>
                             <input type="range" id="output-channels" min="1" max="4" value="1" step="1">
                             <span id="output-channels-val" class="slider-value">1</span>
+                        </div>
+                        <div class="slider-container">
+                            <label>Size:</label>
+                            <input type="range" id="kernel-size" min="1" max="7" value="3" step="2">
+                            <span id="kernel-size-val" class="slider-value">3</span>
                         </div>
                         <div class="slider-container">
                             <label>Stride:</label>
