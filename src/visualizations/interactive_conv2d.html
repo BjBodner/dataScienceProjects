@@ -426,8 +426,8 @@
                         </div>
                         <div class="slider-container">
                             <label>Zoom:</label>
-                            <input type="range" id="zoom-level" min="1" max="10" value="9" step="1">
-                            <span id="zoom-val" class="slider-value">9</span>
+                            <input type="range" id="zoom-level" min="1" max="10" value="8" step="1">
+                            <span id="zoom-val" class="slider-value">8</span>
                         </div>
                     </div>
                 </div>
@@ -436,13 +436,12 @@
                     <button id="start-btn" onclick="startAnimation()">Start</button>
                     <button id="pause-btn" onclick="pauseAnimation()">Pause</button>
                     <button onclick="resetAnimation()">Reset</button>
-                    <button onclick="updateVisualization()">Update</button>
                 </div>
                 
                 <div id="info">
                     <div class="status" id="step-info">Step: 0/25 - Ready</div>
                     <div class="status" id="kernel-pos">Position: (0, 0)</div>
-                    <div class="status" id="conv-value">Value: 0</div>
+                    <div class="status" id="conv-value">Value: Not calculated</div>
                     <div id="output-info">
                         <div>Output: <span id="output-dims">5x5x1</span></div>
                         <div id="receptive-field">Field: 3x3</div>
@@ -460,12 +459,15 @@
         let imageBlocks = [];
         let kernelBlocks = [];
         let outputBlocks = [];
+        let inputHighlights = [];
         let currentStep = 0;
         let isAnimating = false;
         let frames = [];
         let animationSpeed = 800;
-        let zoomLevel = 9; // Changed default to high zoom (close)
-        let currentImage, currentKernel, currentPaddedImage;
+        let zoomLevel = 8; // Changed default to 8 (closer than before)
+        let currentPaddedImage = [];
+        let currentKernel = []; // Will become a 3D array [outCh][kRow][kCol]
+        let outputValues = [];
         
         // Convolution parameters
         let params = {
@@ -504,19 +506,7 @@
             for (let i = 0; i < size; i++) {
                 image[i] = [];
                 for (let j = 0; j < size; j++) {
-                    // Create interesting patterns based on position
-                    let value;
-                    if (i < size / 2) {
-                        value = 1 + Math.random() * 3; // Lower values for top half
-                    } else {
-                        value = 7 + Math.random() * 3; // Higher values for bottom half
-                    }
-                    // Add some noise based on distance from center
-                    const centerX = size / 2;
-                    const centerY = size / 2;
-                    const distance = Math.sqrt((i - centerX) ** 2 + (j - centerY) ** 2);
-                    value += Math.sin(distance) * 1.5;
-                    image[i][j] = Math.max(0.1, Math.min(9.9, value));
+                    image[i][j] = Math.floor(Math.random() * 10) + 1;
                 }
             }
             return image;
@@ -524,52 +514,27 @@
         
         // Generate kernel based on size and type
         function generateKernel(size) {
-            if (size === 1) {
-                return [[1]];
-            } else if (size === 3) {
-                // Sobel horizontal edge detector
-                return [
-                    [-1, -2, -1],
-                    [ 0,  0,  0],
-                    [ 1,  2,  1]
-                ];
-            } else if (size === 5) {
-                // Larger edge detector
-                return [
-                    [-1, -2, -2, -2, -1],
-                    [-1, -1, -1, -1, -1],
-                    [ 0,  0,  0,  0,  0],
-                    [ 1,  1,  1,  1,  1],
-                    [ 1,  2,  2,  2,  1]
-                ];
-            } else if (size === 7) {
-                // Even larger edge detector
-                const k = [];
-                for (let i = 0; i < 7; i++) {
-                    k[i] = [];
-                    for (let j = 0; j < 7; j++) {
-                        if (i < 3) k[i][j] = -1;
-                        else if (i === 3) k[i][j] = 0;
-                        else k[i][j] = 1;
-                    }
+            const kernel = [];
+            for (let i = 0; i < size; i++) {
+                kernel[i] = [];
+                for (let j = 0; j < size; j++) {
+                    kernel[i][j] = Math.random() * 2 - 1; // Random values between -1 and 1
                 }
-                return k;
             }
-            return [[1]]; // Default
+            return kernel;
         }
         
         // Calculate output dimensions
         function calculateDimensions() {
-            const effectiveKernel = params.kernelSize + (params.kernelSize - 1) * (params.dilation - 1);
             paddedSize = params.imageSize + 2 * params.padding;
-            outputSize = Math.floor((paddedSize - effectiveKernel) / params.stride) + 1;
-            totalSteps = outputSize * outputSize;
+            outputSize = Math.floor((paddedSize - (params.kernelSize - 1) * params.dilation - 1) / params.stride) + 1;
+            totalSteps = outputSize * outputSize * params.outputChannels;
             
             // Update UI
             document.getElementById('output-dims').textContent = 
                 `${outputSize}x${outputSize}x${params.outputChannels}`;
             document.getElementById('receptive-field').textContent = 
-                `Field: ${effectiveKernel}x${effectiveKernel}`;
+                `Field: ${params.kernelSize}x${params.kernelSize}`;
         }
         
         function init() {
@@ -657,44 +622,57 @@
         function initializeSliders() {
             const sliders = [
                 'image-size', 'input-channels', 'output-channels', 
-                'kernel-size', 'stride', 'padding', 'dilation', 'animation-speed', 'zoom-level'
+                'kernel-size', 'stride', 'dilation', 'padding'
             ];
             
             sliders.forEach(id => {
                 const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-val');
                 
-                // Map slider IDs to their corresponding value span IDs
-                const valueSpanId = id === 'animation-speed' ? 'speed-val' : 
-                                  id === 'zoom-level' ? 'zoom-val' : 
-                                  id + '-val';
-                const valueSpan = document.getElementById(valueSpanId);
-                
-                // Check if elements exist before setting up event handlers
-                if (!slider || !valueSpan) {
-                    console.warn(`Slider or value span not found for: ${id} (looking for ${valueSpanId})`);
-                    return;
-                }
-                
-                slider.oninput = function() {
-                    let value = this.value;
-                    if (id === 'animation-speed') {
-                        valueSpan.textContent = value + 'ms';
-                        animationSpeed = parseInt(value);
-                    } else if (id === 'zoom-level') {
-                        valueSpan.textContent = value;
-                        // Invert zoom: high slider value = close (low zoom number)
-                        // Map 1-10 slider to 50-10 camera distance
-                        zoomLevel = 60 - (parseInt(value) * 5); // Invert the scale
-                    } else {
-                        valueSpan.textContent = value;
-                        const paramName = id.replace('-', '').replace('size', 'Size').replace('channels', 'Channels');
-                        const finalParamName = paramName.charAt(0).toLowerCase() + paramName.slice(1);
-                        params[finalParamName] = parseInt(value);
-                        
-                        // Always update visualization when changing convolution parameters
-                        updateVisualization();
+                slider.addEventListener('input', function() {
+                    valueSpan.textContent = this.value;
+                    
+                    // Update the corresponding parameter
+                    switch(id) {
+                        case 'image-size':
+                            params.imageSize = parseInt(this.value);
+                            break;
+                        case 'input-channels':
+                            params.inputChannels = parseInt(this.value);
+                            break;
+                        case 'output-channels':
+                            params.outputChannels = parseInt(this.value);
+                            break;
+                        case 'kernel-size':
+                            params.kernelSize = parseInt(this.value);
+                            break;
+                        case 'stride':
+                            params.stride = parseInt(this.value);
+                            break;
+                        case 'dilation':
+                            params.dilation = parseInt(this.value);
+                            break;
+                        case 'padding':
+                            params.padding = parseInt(this.value);
+                            break;
                     }
-                };
+                    
+                    // Update the visualization
+                    updateVisualization();
+                });
+            });
+            
+            // Animation speed slider
+            document.getElementById('animation-speed').addEventListener('input', function() {
+                animationSpeed = parseInt(this.value);
+                document.getElementById('speed-val').textContent = this.value + 'ms';
+            });
+            
+            // Zoom level slider
+            document.getElementById('zoom-level').addEventListener('input', function() {
+                zoomLevel = parseInt(this.value);
+                document.getElementById('zoom-val').textContent = this.value;
+                // Camera position will be updated in the next render frame
             });
             
             // Setup event listeners for checkboxes
@@ -708,23 +686,6 @@
         }
         
         function clearScene() {
-            // Clear text labels
-            textLabels.forEach(label => {
-                if (label.element && label.element.parentNode) {
-                    label.element.parentNode.removeChild(label.element);
-                }
-            });
-            textLabels = [];
-            
-            // Clear arrow objects
-            arrowObjects.forEach(arrow => {
-                scene.remove(arrow);
-                if (arrow.geometry) arrow.geometry.dispose();
-                if (arrow.material) arrow.material.dispose();
-            });
-            arrowObjects = [];
-            kernelArrows = [];
-            
             // Clear image blocks
             imageBlocks.forEach(block => {
                 scene.remove(block);
@@ -732,6 +693,14 @@
                 if (block.material) block.material.dispose();
             });
             imageBlocks = [];
+            
+            // Clear input highlights
+            inputHighlights.forEach(highlight => {
+                scene.remove(highlight);
+                if (highlight.geometry) highlight.geometry.dispose();
+                if (highlight.material) highlight.material.dispose();
+            });
+            inputHighlights = [];
             
             // Clear kernel blocks
             for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
@@ -766,6 +735,22 @@
                 }
             }
             outputBlocks = [];
+            
+            // Clear text labels and arrows
+            textLabels.forEach(label => {
+                if (label.element && label.element.parentNode) {
+                    label.element.parentNode.removeChild(label.element);
+                }
+            });
+            textLabels = [];
+            
+            arrowObjects.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            arrowObjects = [];
+            kernelArrows = [];
         }
         
         function createTextLabels() {
@@ -807,12 +792,17 @@
                 labelDiv.textContent = text;
                 container.appendChild(labelDiv);
                 
-                return {
+                // Store worldPosition for all labels for consistency in updateTextLabels
+                const labelObj = {
                     element: labelDiv,
                     worldPosition: position.clone(),
                     text: text,
-                    labelType: labelType
+                    labelType: labelType,
+                    movesWithKernel: false, // Default to not moving
+                    initialPosition: null // Default to null
                 };
+                // For labels that move with kernel, initialPosition will be set explicitly later
+                return labelObj;
             }
             
             // Helper function to create a 3D arrow along primary axes
@@ -929,7 +919,8 @@
             const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 0.6, -effectiveKernelSize/2 - 0.3);
             
             const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize, 'kernelSize');
-            kernelSizeLabel.isKernelLabel = true;
+            kernelSizeLabel.movesWithKernel = true;
+            kernelSizeLabel.initialPosition = kernelCorner.clone();
             textLabels.push(kernelSizeLabel);
             
             // X-axis arrow for kernel width (marked as kernel arrow)
@@ -947,7 +938,8 @@
                 // Position text higher than kernel size text
                 const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.3);
                 const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels, 'outputChannels');
-                kernelOutputLabel.isKernelLabel = true;
+                kernelOutputLabel.movesWithKernel = true;
+                kernelOutputLabel.initialPosition = kernelOutputLabelPosition.clone();
                 textLabels.push(kernelOutputLabel);
                 
                 createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true, 'outputChannels');
@@ -964,9 +956,12 @@
             // Dilation arrow (X axis) - single arrow, text at beginning
             if (params.dilation > 1) {
                 const dilationStart = new THREE.Vector3(-effectiveKernelSize/2, kernelStartHeight + 0.6, effectiveKernelSize/2 + 1.2);
-                textLabels.push(createLabel('Dilation', dilationStart, colors.dilation, 'dilation'));
+                const dilationLabel = createLabel('Dilation', dilationStart, colors.dilation, 'dilation');
+                dilationLabel.movesWithKernel = true;
+                dilationLabel.initialPosition = dilationStart.clone();
+                textLabels.push(dilationLabel);
                 
-                createArrow(dilationStart, 'x', params.dilation, colors.dilation, false, 'dilation');
+                createArrow(dilationStart, 'x', params.dilation, colors.dilation, true, 'dilation');
             }
             
             // Output size arrows (X and Z axes) - start from corner intersection - always visible
@@ -992,6 +987,11 @@
                 
                 createArrow(outputChannelStart, 'y', outputChannelHeight, colors.outputChannels, false, 'outputChannels');
             }
+            
+            // Store initial positions for kernel arrows
+            kernelArrows.forEach(arrow => {
+                arrow.initialPosition = arrow.position.clone();
+            });
         }
         
         function updateTextLabels() {
@@ -1011,16 +1011,31 @@
             calculateDimensions();
             clearScene();
             
-            currentImage = generateImage(params.imageSize);
+            currentPaddedImage = generateImage(params.imageSize);
             currentKernel = generateKernel(params.kernelSize);
-            currentPaddedImage = addPadding(currentImage, params.padding);
+            currentPaddedImage = addPadding(currentPaddedImage, params.padding);
             
             createImageBlocks();
-            createKernelBlocks(); // Now handles dilation spacing
+            createKernelBlocks();
             createOutputBlocks();
             createTextLabels();
             
-            resetAnimation();
+            // Position kernel in center initially but don't calculate
+            const centerRow = Math.floor(outputSize / 2);
+            const centerCol = Math.floor(outputSize / 2);
+            const centerStep = centerRow * outputSize + centerCol;
+            
+            // Move kernel to center position without calculating
+            moveKernelToPosition(centerStep);
+            
+            // Update UI to show center position but no calculation
+            document.getElementById('kernel-pos').textContent = `Position: (${centerRow}, ${centerCol}) -> (${centerRow}, ${centerCol})`;
+            document.getElementById('conv-value').textContent = 'Value: Not calculated';
+            document.getElementById('step-info').textContent = 'Ready to start';
+            
+            // Update output info
+            document.getElementById('output-dims').textContent = `${outputSize}x${outputSize}x${params.outputChannels}`;
+            document.getElementById('receptive-field').textContent = `Field: ${params.kernelSize}x${params.kernelSize}`;
         }
         
         function updateStepInfo() {
@@ -1039,92 +1054,48 @@
             currentStep = 0;
             frames = [];
             
-            // Calculate the same heights as in creation
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-            const kernelStartHeight = maxInputChannelHeight + 1.0;
-            const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
-            
-            // Reset kernel positions and their edge highlights to initial position
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            if (kernelBlocks[outCh] && kernelBlocks[outCh][inCh] && 
-                                kernelBlocks[outCh][inCh][i] && kernelBlocks[outCh][inCh][i][j]) {
-                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
-                                const block = kernelObj.block;
-                                const edges = kernelObj.edges;
-                                
-                                const inputChannelOffset = inCh * 0.5;
-                                const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                                const initialY = kernelStartHeight + inputChannelOffset + outputChannelOffset;
-                                
-                                // Apply dilation spacing for reset position
-                                const dilatedI = i * params.dilation;
-                                const dilatedJ = j * params.dilation;
-                                const initialX = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                                const initialZ = dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                                
-                                // Reset both block and edges to initial position
-                                block.position.set(initialX, initialY, initialZ);
-                                edges.position.set(initialX, initialY, initialZ);
-                            }
+            // Reset all output blocks to transparent state
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            const outputBlock = outputBlocks[ch][i][j];
+                            const baseColor = new THREE.Color([0xee0066, 0x0099ee, 0x99ee00, 0xee9900][ch % 4]);
+                            
+                            outputBlock.material.color = baseColor;
+                            outputBlock.material.transparent = true;
+                            outputBlock.material.opacity = 0.2; // Reset to transparent
+                            outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.08);
+                            outputBlock.userData.calculated = false; // Mark as not calculated
                         }
                     }
                 }
             }
             
+            // Reset kernel position to center without calculating
+            const centerRow = Math.floor(outputSize / 2);
+            const centerCol = Math.floor(outputSize / 2);
+            const centerStep = centerRow * outputSize + centerCol;
+            moveKernelToPosition(centerStep);
+            
             // Reset kernel arrows to initial positions
             kernelArrows.forEach(arrow => {
-                if (arrow.initialPosition) {
+                if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
                     arrow.position.copy(arrow.initialPosition);
                 }
             });
             
-            // Reset kernel-related text labels to initial positions
+            // Reset kernel-related text labels to their initial positions
             textLabels.forEach(label => {
-                if (label.isKernelLabel) {
-                    if (label.text === 'Kernel Size') {
-                        label.worldPosition.set(
-                            -effectiveKernelSize/2 - 0.3,
-                            kernelStartHeight + 0.6,
-                            -effectiveKernelSize/2 - 0.3
-                        );
-                    } else if (label.text === 'Output Channels') {
-                        // Reset to higher position than kernel size
-                        label.worldPosition.set(
-                            -effectiveKernelSize/2 - 0.3,
-                            kernelStartHeight + 1.2,
-                            -effectiveKernelSize/2 - 0.3
-                        );
-                    }
+                if (label.movesWithKernel && label.initialPosition) {
+                    label.worldPosition.copy(label.initialPosition);
                 }
             });
             
-            // Reset output blocks to eye-catching initial state
-            const outputChannelColors = [
-                0xee0066, // Eye-catching hot pink
-                0x0099ee, // Eye-catching sky blue
-                0x99ee00, // Eye-catching chartreuse
-                0xee9900  // Eye-catching amber
-            ];
-            
-            for (let ch = 0; ch < params.outputChannels; ch++) {
-                for (let i = 0; i < outputSize; i++) {
-                    for (let j = 0; j < outputSize; j++) {
-                        if (outputBlocks[ch] && outputBlocks[ch][i] && outputBlocks[ch][i][j]) {
-                            const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
-                            outputBlocks[ch][i][j].material.color = baseColor;
-                            outputBlocks[ch][i][j].material.opacity = 0.4;
-                            outputBlocks[ch][i][j].material.emissive = baseColor.clone().multiplyScalar(0.08);
-                        }
-                    }
-                }
-            }
-            
-            updateStepInfo();
-            document.getElementById('kernel-pos').textContent = 'Position: (0, 0)';
-            document.getElementById('conv-value').textContent = 'Value: 0';
+            // Update UI
+            document.getElementById('step-info').textContent = 'Ready to start';
+            document.getElementById('kernel-pos').textContent = `Position: (${centerRow}, ${centerCol}) -> (${centerRow}, ${centerCol})`;
+            document.getElementById('conv-value').textContent = 'Value: Not calculated';
             document.getElementById('start-btn').disabled = false;
             document.getElementById('pause-btn').disabled = true;
         }
@@ -1139,24 +1110,7 @@
             document.getElementById('start-btn').disabled = true;
             document.getElementById('pause-btn').disabled = false;
             
-            const animate = () => {
-                if (!isAnimating || currentStep >= totalSteps) {
-                    if (currentStep >= totalSteps) {
-                        document.getElementById('step-info').textContent = `Complete! Steps: ${totalSteps}`;
-                        document.getElementById('start-btn').disabled = false;
-                        document.getElementById('pause-btn').disabled = true;
-                        isAnimating = false;
-                    }
-                    return;
-                }
-                
-                updateKernelPosition(currentStep);
-                currentStep++;
-                
-                setTimeout(animate, animationSpeed);
-            };
-            
-            animate();
+            animateStep();
         }
         
         function pauseAnimation() {
@@ -1165,169 +1119,241 @@
             document.getElementById('pause-btn').disabled = true;
         }
         
-        function updateKernelPosition(step) {
-            const row = Math.floor(step / outputSize) * params.stride;
-            const col = (step % outputSize) * params.stride;
+        function animateStep() {
+            if (!isAnimating) { // Handles pause, or reset from slider change
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                return;
+            }
+        
+            if (currentStep >= totalSteps) { // Animation cycle completed
+                resetAnimation();
+                startAnimation();
+                return;
+            }
             
-            // Move kernel blocks and their edge highlights for all output channels and input channels
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const kernelObj = kernelBlocks[outCh][inCh][i][j];
-                            const block = kernelObj.block;
-                            const edges = kernelObj.edges;
-                            
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const newX = (col + dilatedJ) - paddedSize/2 + 0.5;
-                            const newZ = (row + dilatedI) - paddedSize/2 + 0.5;
-                            
-                            // Use same spacing calculation as creation
-                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-                            const kernelStartHeight = maxInputChannelHeight + 1.0;
-                            const inputChannelOffset = inCh * 0.5;
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                            
-                            const newY = kernelStartHeight + inputChannelOffset + outputChannelOffset;
-                            
-                            // Move both block and edges together
-                            block.position.set(newX, newY, newZ);
-                            edges.position.set(newX, newY, newZ);
+            // Calculate current position for this step
+            const outputChannel = Math.floor(currentStep / (outputSize * outputSize));
+            const stepInChannel = currentStep % (outputSize * outputSize);
+            const outputRow = Math.floor(stepInChannel / outputSize);
+            const outputCol = stepInChannel % outputSize;
+            
+            // Move kernel to the current position
+            moveKernelToPosition(currentStep);
+            
+            // Calculate convolution value
+            const convValue = calculateConvolutionAt(outputRow, outputCol, outputChannel);
+            
+            // Store the calculated value
+            if (outputValues[outputChannel] && outputValues[outputChannel][outputRow]) {
+                outputValues[outputChannel][outputRow][outputCol] = convValue;
+            }
+            
+            // Update the visual appearance of the corresponding output block
+            // This targets the specific block for the current outputChannel, outputRow, and outputCol
+            if (outputBlocks[outputChannel] && 
+                outputBlocks[outputChannel][outputRow] && 
+                outputBlocks[outputChannel][outputRow][outputCol]) {
+                const outputBlock = outputBlocks[outputChannel][outputRow][outputCol];
+                
+                // Change opacity to make it appear "calculated" (less transparent)
+                outputBlock.material.opacity = 0.8; 
+                // outputBlock.material.transparent is true (set at creation), so opacity change is effective
+
+                // Update emissive color to give a glow, using the correct channel's color
+                const outputChannelColors = [0xee0066, 0x0099ee, 0x99ee00, 0xee9900]; 
+                const baseColor = new THREE.Color(outputChannelColors[outputChannel % outputChannelColors.length]);
+                outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.2);
+
+                if (!outputBlock.userData) outputBlock.userData = {};
+                outputBlock.userData.calculated = true;
+            }
+            
+            document.getElementById('conv-value').textContent = `Value: ${convValue.toFixed(2)}`;
+            document.getElementById('kernel-pos').textContent = `Position: (${outputCol}, ${outputRow}) Ch: ${outputChannel}`;
+            document.getElementById('step-info').textContent = `Step: ${currentStep + 1}/${totalSteps} - Processing`;
+            
+            currentStep++;
+            
+            if (isAnimating) {
+                setTimeout(() => {
+                    animateStep();
+                }, animationSpeed);
+            } else { 
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+            }
+        }
+        
+        function moveKernelToPosition(step) {
+            const currentOutputChannelForStep = Math.floor(step / (outputSize * outputSize));
+            const stepInChannel = step % (outputSize * outputSize);
+            const outputRow = Math.floor(stepInChannel / outputSize);
+            const outputCol = stepInChannel % outputSize;
+            
+            // inputRow and inputCol are the top-left of the receptive field for the *active* kernel
+            const inputRowForActiveKernel = outputRow * params.stride;
+            const inputColForActiveKernel = outputCol * params.stride;
+
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const kernelStartHeight = maxInputChannelHeight + 1.0; // Base Y for kernel stacks
+            
+            // --- BEGIN: Calculate delta for moving labels/arrows ---
+            // Delta is calculated based on the displacement of the *active* kernel stack (currentOutputChannelForStep)
+            const initial_00_elem_X = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+            const initial_00_elem_Z = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+            // Initial Y is for the base of the outCh=0 stack
+            const initial_00_elem_Y_base_for_outCh0 = kernelStartHeight; 
+
+            // Current world position of the (i=0, j=0) element for the *currentOutputChannelForStep*
+            const current_00_elem_padded_row = (inputRowForActiveKernel + params.padding) + 0 * params.dilation;
+            const current_00_elem_padded_col = (inputColForActiveKernel + params.padding) + 0 * params.dilation;
+            
+            const current_00_elem_X = current_00_elem_padded_col - paddedSize/2 + 0.5;
+            const current_00_elem_Z = current_00_elem_padded_row - paddedSize/2 + 0.5;
+            // Current Y is for the base of the *currentOutputChannelForStep* stack
+            const current_Y_base_for_active_outCh = kernelStartHeight + (currentOutputChannelForStep * (params.inputChannels * 0.3 + 1.0));
+
+            const deltaX = current_00_elem_X - initial_00_elem_X;
+            // The Y delta should reflect the change in Y from the outCh=0 stack's base to the active outCh stack's base
+            const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
+            const deltaZ = current_00_elem_Z - initial_00_elem_Z;
+            const delta = new THREE.Vector3(deltaX, deltaY, deltaZ);
+ 
+            textLabels.forEach(label => {
+                if (label.movesWithKernel && label.initialPosition) {
+                    label.worldPosition.copy(label.initialPosition).add(delta);
+                }
+            });
+            kernelArrows.forEach(arrow => {
+                if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
+                     arrow.position.copy(arrow.initialPosition).add(delta);
+                }
+            });
+            // --- END: Calculate delta for moving labels/arrows ---
+            
+            // Update input highlights (based on the active kernel's position)
+            let highlightIndex = 0;
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        if (highlightIndex < inputHighlights.length) {
+                            const highlight = inputHighlights[highlightIndex];
+                            const actualPaddedRow = inputRowForActiveKernel + i * params.dilation;
+                            const actualPaddedCol = inputColForActiveKernel + j * params.dilation;
+                            const x = actualPaddedCol - paddedSize/2 + 0.5;
+                            const z = actualPaddedRow - paddedSize/2 + 0.5;
+                            const y = inCh * 1.0 + 0.16;
+                            highlight.position.set(x, y, z);
+                            if (actualPaddedRow >= 0 && actualPaddedRow < paddedSize && actualPaddedCol >= 0 && actualPaddedCol < paddedSize) {
+                                highlight.visible = true;
+                            } else {
+                                highlight.visible = false;
+                            }
                         }
+                        highlightIndex++;
                     }
                 }
             }
             
-            // Move kernel arrows to follow the kernel position
-            const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
-            const kernelCenterX = col - paddedSize/2 + effectiveKernelSize/2;
-            const kernelCenterZ = row - paddedSize/2 + effectiveKernelSize/2;
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-            const kernelStartHeight = maxInputChannelHeight + 1.0;
-            
-            kernelArrows.forEach((arrow, index) => {
-                if (index < 2) { // First two arrows are kernel size arrows (X and Z)
-                    const newPosition = new THREE.Vector3(
-                        kernelCenterX - effectiveKernelSize/2 - 0.3,
-                        kernelStartHeight + 0.6,
-                        kernelCenterZ - effectiveKernelSize/2 - 0.3
-                    );
-                    arrow.position.copy(newPosition);
-                } else { // Kernel output channels arrow (Y) - same corner as kernel size
-                    const newPosition = new THREE.Vector3(
-                        kernelCenterX - effectiveKernelSize/2 - 0.3,
-                        kernelStartHeight + 0.6,
-                        kernelCenterZ - effectiveKernelSize/2 - 0.3
-                    );
-                    arrow.position.copy(newPosition);
-                }
-            });
-            
-            // Update kernel-related text labels
-            textLabels.forEach(label => {
-                if (label.isKernelLabel) {
-                    if (label.text === 'Kernel Size') {
-                        label.worldPosition.set(
-                            kernelCenterX - effectiveKernelSize/2 - 0.3,
-                            kernelStartHeight + 0.6,
-                            kernelCenterZ - effectiveKernelSize/2 - 0.3
-                        );
-                    } else if (label.text === 'Output Channels') {
-                        // Position text higher than kernel size text
-                        label.worldPosition.set(
-                            kernelCenterX - effectiveKernelSize/2 - 0.3,
-                            kernelStartHeight + 1.2,
-                            kernelCenterZ - effectiveKernelSize/2 - 0.3
-                        );
-                    }
-                }
-            });
-            
-            // Calculate convolution values for all output channels
-            const convValues = [];
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                let convValue = 0;
-                
-                // Sum over all input channels for this output channel
+            // Position and set visibility for ALL kernel stacks
+            for (let outChDisplayIdx = 0; outChDisplayIdx < params.outputChannels; outChDisplayIdx++) {
                 for (let inCh = 0; inCh < params.inputChannels; inCh++) {
                     for (let i = 0; i < params.kernelSize; i++) {
                         for (let j = 0; j < params.kernelSize; j++) {
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const imgRow = row + dilatedI;
-                            const imgCol = col + dilatedJ;
-                            
-                            if (imgRow < paddedSize && imgCol < paddedSize) {
-                                const imgVal = currentPaddedImage[imgRow][imgCol];
-                                // Each output channel can have different kernel values
-                                const kernVal = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
-                                // Add slight variation per output channel for demonstration
-                                const channelVariation = 1 + (outCh * 0.2);
-                                convValue += imgVal * kernVal * channelVariation;
+                            if (kernelBlocks[outChDisplayIdx] && kernelBlocks[outChDisplayIdx][inCh] &&
+                                kernelBlocks[outChDisplayIdx][inCh][i] && kernelBlocks[outChDisplayIdx][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outChDisplayIdx][inCh][i][j];
+                                
+                                // All kernel stacks are visible
+                                const makeVisible = true; 
+
+                                // Y position is always based on the kernel's own outChDisplayIdx and inCh
+                                // to maintain the vertical stacking.
+                                const inputChannelOffsetY = inCh * 0.3;
+                                const outputChannelOffsetY = outChDisplayIdx * (params.inputChannels * 0.3 + 1.0);
+                                const targetY = kernelStartHeight + inputChannelOffsetY + outputChannelOffsetY;
+
+                                // X,Z position for ALL stacks is based on the active kernel's current receptive field.
+                                // This makes all kernel stacks move together in X and Z.
+                                const currentPaddedRowForElement = inputRowForActiveKernel + i * params.dilation;
+                                const currentPaddedColForElement = inputColForActiveKernel + j * params.dilation;
+                                const targetX = currentPaddedColForElement - paddedSize / 2 + 0.5;
+                                const targetZ = currentPaddedRowForElement - paddedSize / 2 + 0.5;
+                                
+                                kernelObj.block.position.set(targetX, targetY, targetZ);
+                                kernelObj.edges.position.set(targetX, targetY, targetZ);
+
+                                kernelObj.block.visible = makeVisible;
+                                kernelObj.edges.visible = makeVisible;
                             }
                         }
                     }
                 }
-                
-                convValues[outCh] = convValue;
-                
-                // Update output block for this channel
-                const outputRow = Math.floor(step / outputSize);
-                const outputCol = step % outputSize;
-                const outputBlock = outputBlocks[outCh][outputRow][outputCol];
-                
-                // Eye-catching but balanced color mapping
-                const absValue = Math.abs(convValue);
-                const normalizedValue = Math.min(1, absValue / 20);
-                
-                let color;
-                if (convValue > 3) {
-                    // Eye-catching warm colors for positive values
-                    color = new THREE.Color().setHSL(0.08 + outCh * 0.12, 0.9, 0.45 + normalizedValue * 0.35);
-                } else if (convValue < -3) {
-                    // Eye-catching cool colors for negative values
-                    color = new THREE.Color().setHSL(0.55 + outCh * 0.08, 0.9, 0.45 + normalizedValue * 0.35);
-                } else {
-                    // Eye-catching neutral colors for small values
-                    color = new THREE.Color().setHSL(0.75 + outCh * 0.08, 0.7, 0.4 + normalizedValue * 0.4);
+            }
+        }
+        
+        function calculateConvolutionAt(outputRow, outputCol, outputChannel) {
+            let sum = 0;
+            
+            // Calculate input position based on stride.
+            // This inputRow/Col is the top-left starting position of the kernel's receptive field
+            // *within the padded image dimensions* because outputSize was calculated using paddedSize.
+            const inputRowStartInPadded = outputRow * params.stride;
+            const inputColStartInPadded = outputCol * params.stride;
+            
+            // Sum over all input channels for this output channel
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                // Convolve with kernel
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Calculate actual position in padded image with dilation
+                        const imgRow = inputRowStartInPadded + i * params.dilation;
+                        const imgCol = inputColStartInPadded + j * params.dilation;
+                        
+                        // Check bounds against paddedSize
+                        if (imgRow >= 0 && imgRow < paddedSize && imgCol >= 0 && imgCol < paddedSize) {
+                            const imgValue = currentPaddedImage[imgRow][imgCol]; // currentPaddedImage is already padded
+                            // Use the kernel specific to the current outputChannel
+                            const kernelValue = currentKernel[outputChannel][i][j]; 
+                            sum += imgValue * kernelValue;
+                        }
+                    }
                 }
-                
-                outputBlock.material.color = color;
-                outputBlock.material.opacity = 0.6 + normalizedValue * 0.3;
-                outputBlock.material.emissive = color.clone().multiplyScalar(0.15); // Balanced glow
             }
             
-            // Update UI
-            const outputRow = Math.floor(step / outputSize);
-            const outputCol = step % outputSize;
-            document.getElementById('step-info').textContent = `Step: ${step + 1}/${totalSteps} - Processing`;
-            document.getElementById('kernel-pos').textContent = `Position: (${outputRow}, ${outputCol}) -> (${row}, ${col})`;
-            document.getElementById('conv-value').textContent = `Value: ${convValues[0].toFixed(2)}${params.outputChannels > 1 ? ` (+${params.outputChannels-1})` : ''}`;
-            
-            return convValues[0];
+            return sum;
         }
         
         function render() {
-            // Slower, gentler camera rotation
-            const time = Date.now() * 0.0002;
-            camera.position.x = Math.cos(time) * zoomLevel;
-            camera.position.z = Math.sin(time) * zoomLevel;
-            camera.position.y = zoomLevel * 0.75 + Math.sin(time * 0.5) * 2;
+            requestAnimationFrame(render);
+            
+            // Smooth camera rotation with limited range and deceleration
+            const time = Date.now() * 0.0003; // Slower rotation (was 0.0005)
+            const yawRange = 120; // Total range in degrees (240 - 120 = 120)
+            const minYaw = 120; // Minimum yaw angle in degrees
+            
+            // Create smooth oscillation with easing
+            const normalizedTime = (Math.sin(time) + 1) / 2; // Normalize to 0-1
+            const easedTime = normalizedTime * normalizedTime * (3 - 2 * normalizedTime); // Smooth step function for easing
+            
+            const yawDegrees = minYaw + easedTime * yawRange;
+            const yawRadians = (yawDegrees * Math.PI) / 180;
+            
+            // Invert zoom: higher slider value = closer camera
+            // Map slider 1-10 to camera distance 30-12 (inverted)
+            const radius = (11 - zoomLevel) * 3; // Inverted: 10->3, 1->30
+            const height = (11 - zoomLevel) * 2; // Inverted: 10->2, 1->20
+            
+            camera.position.x = Math.cos(yawRadians) * radius;
+            camera.position.z = Math.sin(yawRadians) * radius;
+            camera.position.y = height;
             camera.lookAt(0, 0, 0);
             
             // Update text label positions
             updateTextLabels();
             
             renderer.render(scene, camera);
-            
-            // Capture frame for video export
-            if (isAnimating) {
-                const canvas = renderer.domElement;
-                frames.push(canvas.toDataURL('image/png'));
-            }
-            
-            requestAnimationFrame(render);
         }
         
         function updateLabelVisibility(labelType) {
@@ -1362,7 +1388,7 @@
                 for (let j = 0; j < paddedSize; j++) {
                     if (i < padding || i >= paddedSize - padding || 
                         j < padding || j >= paddedSize - padding) {
-                        paddedImage[i][j] = 0; // Zero padding
+                        paddedImage[i][j] = 0; // Padding value
                     } else {
                         paddedImage[i][j] = image[i - padding][j - padding];
                     }
@@ -1381,17 +1407,17 @@
             });
             imageBlocks = [];
             
-            // Create image blocks
+            // Create image blocks - thinner and not transparent with edge highlights
             for (let ch = 0; ch < params.inputChannels; ch++) {
                 for (let i = 0; i < paddedSize; i++) {
                     for (let j = 0; j < paddedSize; j++) {
                         const value = currentPaddedImage[i][j];
                         
-                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Made thinner (height 0.3 instead of 0.9)
                         const material = new THREE.MeshLambertMaterial({
                             color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
-                            transparent: true,
-                            opacity: value === 0 ? 0.3 : 0.8
+                            transparent: false, // Not transparent
+                            opacity: 1.0 // Full opacity
                         });
                         
                         const block = new THREE.Mesh(geometry, material);
@@ -1402,8 +1428,21 @@
                         );
                         block.castShadow = true;
                         
+                        // Create edge highlight for input blocks
+                        const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                        const edgeMaterial = new THREE.LineBasicMaterial({ 
+                            color: 0xffffff, 
+                            linewidth: 2,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                        edges.position.copy(block.position);
+                        
                         scene.add(block);
+                        scene.add(edges);
                         imageBlocks.push(block);
+                        imageBlocks.push(edges); // Store edges too for cleanup
                     }
                 }
             }
@@ -1429,7 +1468,46 @@
                 }
             }
             
+            // Clear existing input highlights
+            inputHighlights.forEach(highlight => {
+                scene.remove(highlight);
+                if (highlight.geometry) highlight.geometry.dispose();
+                if (highlight.material) highlight.material.dispose();
+            });
+            inputHighlights = [];
+            
             kernelBlocks = [];
+            
+            // Output channel colors to match kernels with their outputs
+            const outputChannelColors = [
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
+            ];
+            
+            // Create input highlights for each channel
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Create highlight block
+                        const highlightGeometry = new THREE.BoxGeometry(0.95, 0.05, 0.95);
+                        const highlightMaterial = new THREE.MeshBasicMaterial({
+                            color: 0xffff00, // Bright yellow
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+                        
+                        // Position slightly above the input plane
+                        highlight.position.set(0, inCh * 1.0 + 0.16, 0);
+                        highlight.visible = false; // Initially hidden
+                        
+                        scene.add(highlight);
+                        inputHighlights.push(highlight);
+                    }
+                }
+            }
             
             // Create kernel blocks with dilation spacing
             for (let outCh = 0; outCh < params.outputChannels; outCh++) {
@@ -1439,14 +1517,17 @@
                     for (let i = 0; i < params.kernelSize; i++) {
                         kernelBlocks[outCh][inCh][i] = [];
                         for (let j = 0; j < params.kernelSize; j++) {
-                            const value = currentKernel[i][j];
+                            const value = currentKernel[outCh][i][j];
                             
-                            // Create block
-                            const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                            // Use output channel color for this kernel
+                            const baseColor = outputChannelColors[outCh % outputChannelColors.length];
+                            
+                            // Create block with smaller height
+                            const geometry = new THREE.BoxGeometry(0.8, 0.4, 0.8); // Reduced height from 0.8 to 0.4
                             const material = new THREE.MeshLambertMaterial({
-                                color: value > 0 ? 0x4CAF50 : value < 0 ? 0xF44336 : 0x9E9E9E,
-                                transparent: true,
-                                opacity: 0.8
+                                color: baseColor, // Use output channel color
+                                transparent: false, // Changed from true
+                                opacity: 1.0 // Changed from 0.8
                             });
                             const block = new THREE.Mesh(geometry, material);
                             block.castShadow = true;
@@ -1464,8 +1545,8 @@
                             // Position with dilation spacing
                             const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
                             const kernelStartHeight = maxInputChannelHeight + 1.0;
-                            const inputChannelOffset = inCh * 0.5;
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
+                            const inputChannelOffset = inCh * 0.3; // Reduced from 0.5 to 0.3
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.3 + 1.0); // Adjusted spacing
                             const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
                             
                             // Apply dilation spacing
@@ -1480,7 +1561,7 @@
                             scene.add(block);
                             scene.add(edges);
                             
-                            // Store both block and edges together
+                            // Store block and edges (shadow removed)
                             kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
                         }
                     }
@@ -1517,12 +1598,12 @@
                 for (let i = 0; i < outputSize; i++) {
                     outputBlocks[ch][i] = [];
                     for (let j = 0; j < outputSize; j++) {
-                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Same thickness as input planes
                         const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
                         const material = new THREE.MeshLambertMaterial({
                             color: baseColor,
                             transparent: true,
-                            opacity: 0.4,
+                            opacity: 0.2, // Start very transparent
                             emissive: baseColor.clone().multiplyScalar(0.08)
                         });
                         
@@ -1533,6 +1614,9 @@
                             i - outputSize/2 + 0.5
                         );
                         block.castShadow = true;
+                        
+                        // Mark as not calculated yet
+                        block.userData = { calculated: false };
                         
                         scene.add(block);
                         outputBlocks[ch][i][j] = block;
