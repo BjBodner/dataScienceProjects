@@ -363,19 +363,25 @@
                     <div class="param-group">
                         <h3>Input Config</h3>
                         <div class="slider-container">
+                            <label>Image Size:</label>
+                            <input type="range" id="image-size" min="3" max="9" value="7" step="2">
+                            <span id="image-size-val" class="slider-value">7</span>
+                            <input type="checkbox" id="show-input-size" checked>
+                            <label for="show-input-size" class="checkbox-label">Show</label>
+                        </div>
+                        <div class="slider-container">
                             <label>Input Channels:</label>
                             <input type="range" id="input-channels" min="1" max="4" value="1" step="1">
                             <span id="input-channels-val" class="slider-value">1</span>
-                        </div>
-                        <div class="slider-container">
-                            <label>Size:</label>
-                            <input type="range" id="image-size" min="3" max="12" value="7" step="1">
-                            <span id="image-size-val" class="slider-value">7</span>
+                            <input type="checkbox" id="show-input-channels" checked>
+                            <label for="show-input-channels" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Padding:</label>
                             <input type="range" id="padding" min="0" max="3" value="1" step="1">
                             <span id="padding-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-padding" checked>
+                            <label for="show-padding" class="checkbox-label">Show</label>
                         </div>
                     </div>
                     
@@ -385,21 +391,29 @@
                             <label>Output Channels:</label>
                             <input type="range" id="output-channels" min="1" max="4" value="1" step="1">
                             <span id="output-channels-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-output-channels" checked>
+                            <label for="show-output-channels" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
-                            <label>Size:</label>
+                            <label>Kernel Size:</label>
                             <input type="range" id="kernel-size" min="1" max="7" value="3" step="2">
                             <span id="kernel-size-val" class="slider-value">3</span>
+                            <input type="checkbox" id="show-kernel-size" checked>
+                            <label for="show-kernel-size" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Stride:</label>
                             <input type="range" id="stride" min="1" max="3" value="1" step="1">
                             <span id="stride-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-stride" checked>
+                            <label for="show-stride" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Dilation:</label>
                             <input type="range" id="dilation" min="1" max="3" value="1" step="1">
                             <span id="dilation-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-dilation" checked>
+                            <label for="show-dilation" class="checkbox-label">Show</label>
                         </div>
                     </div>
                     
@@ -423,7 +437,6 @@
                     <button id="pause-btn" onclick="pauseAnimation()">Pause</button>
                     <button onclick="resetAnimation()">Reset</button>
                     <button onclick="updateVisualization()">Update</button>
-                    <button id="toggle-labels-btn" onclick="toggleLabels()">Hide Labels</button>
                 </div>
                 
                 <div id="info">
@@ -472,7 +485,18 @@
         let textLabels = [];
         let arrowObjects = [];
         let kernelArrows = []; // Store kernel-related arrows that need to move
-        let labelsVisible = true; // Track label visibility
+        
+        // Individual label visibility states
+        let labelVisibility = {
+            inputSize: true,
+            inputChannels: true,
+            outputChannels: true,
+            kernelSize: true,
+            stride: true,
+            padding: true,
+            dilation: true,
+            outputSize: true // Always true, not controlled by checkbox
+        };
         
         // Dynamic image generation based on size
         function generateImage(size) {
@@ -672,6 +696,15 @@
                     }
                 };
             });
+            
+            // Setup event listeners for checkboxes
+            document.getElementById('show-input-size').addEventListener('change', () => updateLabelVisibility('inputSize'));
+            document.getElementById('show-input-channels').addEventListener('change', () => updateLabelVisibility('inputChannels'));
+            document.getElementById('show-output-channels').addEventListener('change', () => updateLabelVisibility('outputChannels'));
+            document.getElementById('show-kernel-size').addEventListener('change', () => updateLabelVisibility('kernelSize'));
+            document.getElementById('show-stride').addEventListener('change', () => updateLabelVisibility('stride'));
+            document.getElementById('show-padding').addEventListener('change', () => updateLabelVisibility('padding'));
+            document.getElementById('show-dilation').addEventListener('change', () => updateLabelVisibility('dilation'));
         }
         
         function clearScene() {
@@ -755,7 +788,7 @@
             const container = document.getElementById('container');
             
             // Helper function to create a text label with matching arrow color
-            function createLabel(text, position, arrowColor = 0x4CAF50) {
+            function createLabel(text, position, arrowColor = 0x4CAF50, labelType = '') {
                 const labelDiv = document.createElement('div');
                 labelDiv.style.position = 'absolute';
                 labelDiv.style.color = '#ffffff';
@@ -768,7 +801,8 @@
                 labelDiv.style.pointerEvents = 'none';
                 labelDiv.style.zIndex = '1000';
                 labelDiv.style.whiteSpace = 'nowrap';
-                labelDiv.style.display = labelsVisible ? 'block' : 'none';
+                // Output size is always visible, others respect checkbox state
+                labelDiv.style.display = (labelType === 'outputSize' || labelVisibility[labelType]) ? 'block' : 'none';
                 
                 labelDiv.textContent = text;
                 container.appendChild(labelDiv);
@@ -776,12 +810,13 @@
                 return {
                     element: labelDiv,
                     worldPosition: position.clone(),
-                    text: text
+                    text: text,
+                    labelType: labelType
                 };
             }
             
             // Helper function to create a 3D arrow along primary axes
-            function createArrow(startPosition, axis, length, color = 0x4CAF50, isKernelArrow = false) {
+            function createArrow(startPosition, axis, length, color = 0x4CAF50, isKernelArrow = false, labelType = '') {
                 const arrowGroup = new THREE.Group();
                 
                 // Create arrow shaft (cylinder)
@@ -822,6 +857,9 @@
                 arrowGroup.add(shaft);
                 arrowGroup.add(head);
                 arrowGroup.position.copy(startPosition);
+                // Output size arrows are always visible, others respect checkbox state
+                arrowGroup.visible = (labelType === 'outputSize' || labelVisibility[labelType]);
+                arrowGroup.labelType = labelType;
                 
                 // Store initial position and mark as kernel arrow if needed
                 if (isKernelArrow) {
@@ -855,34 +893,34 @@
             
             // Input size arrows (X and Z axes) - start from corner intersection with adaptive height
             const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, adaptiveHeight, -params.imageSize/2 - 0.3);
-            textLabels.push(createLabel('Input Size', inputCorner, colors.inputSize));
+            textLabels.push(createLabel('Input Size', inputCorner, colors.inputSize, 'inputSize'));
             
             // X-axis arrow for input width
-            createArrow(inputCorner, 'x', params.imageSize, colors.inputSize);
+            createArrow(inputCorner, 'x', params.imageSize, colors.inputSize, false, 'inputSize');
             
             // Z-axis arrow for input height
-            createArrow(inputCorner, 'z', params.imageSize, colors.inputSize);
+            createArrow(inputCorner, 'z', params.imageSize, colors.inputSize, false, 'inputSize');
             
             // Input channels arrow (Y axis) - single arrow, text at beginning
             if (params.inputChannels > 1) {
                 const channelHeight = (params.inputChannels - 1) * 1.0;
                 const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, 0);
-                textLabels.push(createLabel('Input Channels', channelStart, colors.inputChannels));
+                textLabels.push(createLabel('Input Channels', channelStart, colors.inputChannels, 'inputChannels'));
                 
-                createArrow(channelStart, 'y', channelHeight, colors.inputChannels);
+                createArrow(channelStart, 'y', channelHeight, colors.inputChannels, false, 'inputChannels');
             }
             
             // Padding arrows (X and Z axes) - start from corner intersection with adaptive height
             if (params.padding > 0) {
                 const paddingCorner = new THREE.Vector3(-paddedSize/2, adaptiveHeight, -paddedSize/2);
                 const paddingCornerText = new THREE.Vector3(-paddedSize/2, adaptiveHeight + 0.8, -paddedSize/2);
-                textLabels.push(createLabel('Padding', paddingCornerText, colors.padding));
+                textLabels.push(createLabel('Padding', paddingCornerText, colors.padding, 'padding'));
                 
                 // X-axis arrow for padding width
-                createArrow(paddingCorner, 'x', params.padding, colors.padding);
+                createArrow(paddingCorner, 'x', params.padding, colors.padding, false, 'padding');
                 
                 // Z-axis arrow for padding depth
-                createArrow(paddingCorner, 'z', params.padding, colors.padding);
+                createArrow(paddingCorner, 'z', params.padding, colors.padding, false, 'padding');
             }
             
             // Kernel size arrows (X and Z axes) - start from corner intersection
@@ -890,15 +928,15 @@
             const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
             const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 0.6, -effectiveKernelSize/2 - 0.3);
             
-            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize);
+            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize, 'kernelSize');
             kernelSizeLabel.isKernelLabel = true;
             textLabels.push(kernelSizeLabel);
             
             // X-axis arrow for kernel width (marked as kernel arrow)
-            createArrow(kernelCorner, 'x', effectiveKernelSize, colors.kernelSize, true);
+            createArrow(kernelCorner, 'x', effectiveKernelSize, colors.kernelSize, true, 'kernelSize');
             
             // Z-axis arrow for kernel height (marked as kernel arrow)
-            createArrow(kernelCorner, 'z', effectiveKernelSize, colors.kernelSize, true);
+            createArrow(kernelCorner, 'z', effectiveKernelSize, colors.kernelSize, true, 'kernelSize');
             
             // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows
             if (params.outputChannels > 1) {
@@ -908,39 +946,39 @@
                 
                 // Position text higher than kernel size text
                 const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.3);
-                const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels);
+                const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels, 'outputChannels');
                 kernelOutputLabel.isKernelLabel = true;
                 textLabels.push(kernelOutputLabel);
                 
-                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true);
+                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true, 'outputChannels');
             }
             
             // Stride arrow (X axis) - single arrow, text at beginning with adaptive height
             if (params.stride > 1) {
                 const strideStart = new THREE.Vector3(paddedSize/2 + 0.8, adaptiveHeight, 0);
-                textLabels.push(createLabel('Stride', strideStart, colors.stride));
+                textLabels.push(createLabel('Stride', strideStart, colors.stride, 'stride'));
                 
-                createArrow(strideStart, 'x', params.stride, colors.stride);
+                createArrow(strideStart, 'x', params.stride, colors.stride, false, 'stride');
             }
             
             // Dilation arrow (X axis) - single arrow, text at beginning
             if (params.dilation > 1) {
                 const dilationStart = new THREE.Vector3(-effectiveKernelSize/2, kernelStartHeight + 0.6, effectiveKernelSize/2 + 1.2);
-                textLabels.push(createLabel('Dilation', dilationStart, colors.dilation));
+                textLabels.push(createLabel('Dilation', dilationStart, colors.dilation, 'dilation'));
                 
-                createArrow(dilationStart, 'x', params.dilation, colors.dilation);
+                createArrow(dilationStart, 'x', params.dilation, colors.dilation, false, 'dilation');
             }
             
-            // Output size arrows (X and Z axes) - start from corner intersection
+            // Output size arrows (X and Z axes) - start from corner intersection - always visible
             const outputOffset = paddedSize + 5;
             const outputCorner = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
-            textLabels.push(createLabel('Output Size', outputCorner, colors.outputSize));
+            textLabels.push(createLabel('Output Size', outputCorner, colors.outputSize, 'outputSize'));
             
-            // X-axis arrow for output width
-            createArrow(outputCorner, 'x', outputSize, colors.outputSize);
+            // X-axis arrow for output width - always visible
+            createArrow(outputCorner, 'x', outputSize, colors.outputSize, false, 'outputSize');
             
-            // Z-axis arrow for output height
-            createArrow(outputCorner, 'z', outputSize, colors.outputSize);
+            // Z-axis arrow for output height - always visible
+            createArrow(outputCorner, 'z', outputSize, colors.outputSize, false, 'outputSize');
             
             // Output channels arrow (Y axis) - at same corner as output size arrows
             if (params.outputChannels > 1) {
@@ -950,9 +988,9 @@
                 
                 // Position text higher than output size text
                 const outputChannelLabelPosition = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 1.8, -outputSize/2 - 0.3);
-                textLabels.push(createLabel('Output Channels', outputChannelLabelPosition, colors.outputChannels));
+                textLabels.push(createLabel('Output Channels', outputChannelLabelPosition, colors.outputChannels, 'outputChannels'));
                 
-                createArrow(outputChannelStart, 'y', outputChannelHeight, colors.outputChannels);
+                createArrow(outputChannelStart, 'y', outputChannelHeight, colors.outputChannels, false, 'outputChannels');
             }
         }
         
@@ -994,215 +1032,6 @@
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
-        }
-        
-        function toggleLabels() {
-            labelsVisible = !labelsVisible;
-            
-            // Toggle text labels
-            textLabels.forEach(label => {
-                if (label.element) {
-                    label.element.style.display = labelsVisible ? 'block' : 'none';
-                }
-            });
-            
-            // Toggle arrow objects
-            arrowObjects.forEach(arrow => {
-                arrow.visible = labelsVisible;
-            });
-            
-            // Update button text
-            document.getElementById('toggle-labels-btn').textContent = labelsVisible ? 'Hide Labels' : 'Show Labels';
-        }
-        
-        function addPadding(image, padding) {
-            if (padding === 0) return image;
-            
-            const paddedSize = image.length + 2 * padding;
-            const paddedImage = [];
-            
-            for (let i = 0; i < paddedSize; i++) {
-                paddedImage[i] = [];
-                for (let j = 0; j < paddedSize; j++) {
-                    if (i < padding || i >= paddedSize - padding || 
-                        j < padding || j >= paddedSize - padding) {
-                        paddedImage[i][j] = 0; // Zero padding
-                    } else {
-                        paddedImage[i][j] = image[i - padding][j - padding];
-                    }
-                }
-            }
-            
-            return paddedImage;
-        }
-        
-        function createImageBlocks() {
-            // Clear existing image blocks
-            imageBlocks.forEach(block => {
-                scene.remove(block);
-                if (block.geometry) block.geometry.dispose();
-                if (block.material) block.material.dispose();
-            });
-            imageBlocks = [];
-            
-            // Create image blocks
-            for (let ch = 0; ch < params.inputChannels; ch++) {
-                for (let i = 0; i < paddedSize; i++) {
-                    for (let j = 0; j < paddedSize; j++) {
-                        const value = currentPaddedImage[i][j];
-                        
-                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-                        const material = new THREE.MeshLambertMaterial({
-                            color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
-                            transparent: true,
-                            opacity: value === 0 ? 0.3 : 0.8
-                        });
-                        
-                        const block = new THREE.Mesh(geometry, material);
-                        block.position.set(
-                            j - paddedSize/2 + 0.5,
-                            ch * 1.0,
-                            i - paddedSize/2 + 0.5
-                        );
-                        block.castShadow = true;
-                        
-                        scene.add(block);
-                        imageBlocks.push(block);
-                    }
-                }
-            }
-        }
-        
-        function createKernelBlocks() {
-            // Clear existing kernel blocks
-            for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
-                for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
-                    for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
-                        for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
-                            if (kernelBlocks[outCh][inCh][i][j]) {
-                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
-                                scene.remove(kernelObj.block);
-                                scene.remove(kernelObj.edges);
-                                if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
-                                if (kernelObj.block.material) kernelObj.block.material.dispose();
-                                if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
-                                if (kernelObj.edges.material) kernelObj.edges.material.dispose();
-                            }
-                        }
-                    }
-                }
-            }
-            
-            kernelBlocks = [];
-            
-            // Create kernel blocks with dilation spacing
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                kernelBlocks[outCh] = [];
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    kernelBlocks[outCh][inCh] = [];
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        kernelBlocks[outCh][inCh][i] = [];
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const value = currentKernel[i][j];
-                            
-                            // Create block
-                            const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-                            const material = new THREE.MeshLambertMaterial({
-                                color: value > 0 ? 0x4CAF50 : value < 0 ? 0xF44336 : 0x9E9E9E,
-                                transparent: true,
-                                opacity: 0.8
-                            });
-                            const block = new THREE.Mesh(geometry, material);
-                            block.castShadow = true;
-                            
-                            // Create edge highlight
-                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
-                            const edgeMaterial = new THREE.LineBasicMaterial({ 
-                                color: 0xffffff, 
-                                linewidth: 3,
-                                transparent: true,
-                                opacity: 0.8
-                            });
-                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-                            
-                            // Position with dilation spacing
-                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-                            const kernelStartHeight = maxInputChannelHeight + 1.0;
-                            const inputChannelOffset = inCh * 0.5;
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                            const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
-                            
-                            // Apply dilation spacing
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const x = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                            const z = dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                            
-                            block.position.set(x, y, z);
-                            edges.position.set(x, y, z);
-                            
-                            scene.add(block);
-                            scene.add(edges);
-                            
-                            // Store both block and edges together
-                            kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
-                        }
-                    }
-                }
-            }
-        }
-        
-        function createOutputBlocks() {
-            // Clear existing output blocks
-            for (let ch = 0; ch < outputBlocks.length; ch++) {
-                for (let i = 0; i < outputBlocks[ch].length; i++) {
-                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
-                        if (outputBlocks[ch][i][j]) {
-                            scene.remove(outputBlocks[ch][i][j]);
-                            if (outputBlocks[ch][i][j].geometry) outputBlocks[ch][i][j].geometry.dispose();
-                            if (outputBlocks[ch][i][j].material) outputBlocks[ch][i][j].material.dispose();
-                        }
-                    }
-                }
-            }
-            outputBlocks = [];
-            
-            // Create output blocks
-            const outputOffset = paddedSize + 5;
-            const outputChannelColors = [
-                0xee0066, // Eye-catching hot pink
-                0x0099ee, // Eye-catching sky blue
-                0x99ee00, // Eye-catching chartreuse
-                0xee9900  // Eye-catching amber
-            ];
-            
-            for (let ch = 0; ch < params.outputChannels; ch++) {
-                outputBlocks[ch] = [];
-                for (let i = 0; i < outputSize; i++) {
-                    outputBlocks[ch][i] = [];
-                    for (let j = 0; j < outputSize; j++) {
-                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-                        const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
-                        const material = new THREE.MeshLambertMaterial({
-                            color: baseColor,
-                            transparent: true,
-                            opacity: 0.4,
-                            emissive: baseColor.clone().multiplyScalar(0.08)
-                        });
-                        
-                        const block = new THREE.Mesh(geometry, material);
-                        block.position.set(
-                            outputOffset + j - outputSize/2 + 0.5,
-                            ch * 1.5,
-                            i - outputSize/2 + 0.5
-                        );
-                        block.castShadow = true;
-                        
-                        scene.add(block);
-                        outputBlocks[ch][i][j] = block;
-                    }
-                }
-            }
         }
         
         function resetAnimation() {
@@ -1499,6 +1328,217 @@
             }
             
             requestAnimationFrame(render);
+        }
+        
+        function updateLabelVisibility(labelType) {
+            // Skip output size as it's always visible
+            if (labelType === 'outputSize') return;
+            
+            const checkboxId = `show-${labelType.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            labelVisibility[labelType] = document.getElementById(checkboxId).checked;
+            
+            // Update visibility of related labels and arrows
+            textLabels.forEach(label => {
+                if (label.labelType === labelType) {
+                    label.element.style.display = labelVisibility[labelType] ? 'block' : 'none';
+                }
+            });
+            
+            arrowObjects.forEach(arrow => {
+                if (arrow.labelType === labelType) {
+                    arrow.visible = labelVisibility[labelType];
+                }
+            });
+        }
+        
+        function addPadding(image, padding) {
+            if (padding === 0) return image;
+            
+            const paddedSize = image.length + 2 * padding;
+            const paddedImage = [];
+            
+            for (let i = 0; i < paddedSize; i++) {
+                paddedImage[i] = [];
+                for (let j = 0; j < paddedSize; j++) {
+                    if (i < padding || i >= paddedSize - padding || 
+                        j < padding || j >= paddedSize - padding) {
+                        paddedImage[i][j] = 0; // Zero padding
+                    } else {
+                        paddedImage[i][j] = image[i - padding][j - padding];
+                    }
+                }
+            }
+            
+            return paddedImage;
+        }
+        
+        function createImageBlocks() {
+            // Clear existing image blocks
+            imageBlocks.forEach(block => {
+                scene.remove(block);
+                if (block.geometry) block.geometry.dispose();
+                if (block.material) block.material.dispose();
+            });
+            imageBlocks = [];
+            
+            // Create image blocks
+            for (let ch = 0; ch < params.inputChannels; ch++) {
+                for (let i = 0; i < paddedSize; i++) {
+                    for (let j = 0; j < paddedSize; j++) {
+                        const value = currentPaddedImage[i][j];
+                        
+                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+                        const material = new THREE.MeshLambertMaterial({
+                            color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
+                            transparent: true,
+                            opacity: value === 0 ? 0.3 : 0.8
+                        });
+                        
+                        const block = new THREE.Mesh(geometry, material);
+                        block.position.set(
+                            j - paddedSize/2 + 0.5,
+                            ch * 1.0,
+                            i - paddedSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        
+                        scene.add(block);
+                        imageBlocks.push(block);
+                    }
+                }
+            }
+        }
+        
+        function createKernelBlocks() {
+            // Clear existing kernel blocks
+            for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
+                for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
+                    for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
+                        for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
+                            if (kernelBlocks[outCh][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                                scene.remove(kernelObj.block);
+                                scene.remove(kernelObj.edges);
+                                if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
+                                if (kernelObj.block.material) kernelObj.block.material.dispose();
+                                if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
+                                if (kernelObj.edges.material) kernelObj.edges.material.dispose();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            kernelBlocks = [];
+            
+            // Create kernel blocks with dilation spacing
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                kernelBlocks[outCh] = [];
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    kernelBlocks[outCh][inCh] = [];
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        kernelBlocks[outCh][inCh][i] = [];
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            const value = currentKernel[i][j];
+                            
+                            // Create block
+                            const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                            const material = new THREE.MeshLambertMaterial({
+                                color: value > 0 ? 0x4CAF50 : value < 0 ? 0xF44336 : 0x9E9E9E,
+                                transparent: true,
+                                opacity: 0.8
+                            });
+                            const block = new THREE.Mesh(geometry, material);
+                            block.castShadow = true;
+                            
+                            // Create edge highlight
+                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                            const edgeMaterial = new THREE.LineBasicMaterial({ 
+                                color: 0xffffff, 
+                                linewidth: 3,
+                                transparent: true,
+                                opacity: 0.8
+                            });
+                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                            
+                            // Position with dilation spacing
+                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+                            const kernelStartHeight = maxInputChannelHeight + 1.0;
+                            const inputChannelOffset = inCh * 0.5;
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
+                            const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                            
+                            // Apply dilation spacing
+                            const dilatedI = i * params.dilation;
+                            const dilatedJ = j * params.dilation;
+                            const x = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                            const z = dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                            
+                            block.position.set(x, y, z);
+                            edges.position.set(x, y, z);
+                            
+                            scene.add(block);
+                            scene.add(edges);
+                            
+                            // Store both block and edges together
+                            kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
+                        }
+                    }
+                }
+            }
+        }
+        
+        function createOutputBlocks() {
+            // Clear existing output blocks
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            scene.remove(outputBlocks[ch][i][j]);
+                            if (outputBlocks[ch][i][j].geometry) outputBlocks[ch][i][j].geometry.dispose();
+                            if (outputBlocks[ch][i][j].material) outputBlocks[ch][i][j].material.dispose();
+                        }
+                    }
+                }
+            }
+            outputBlocks = [];
+            
+            // Create output blocks
+            const outputOffset = paddedSize + 5;
+            const outputChannelColors = [
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
+            ];
+            
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                outputBlocks[ch] = [];
+                for (let i = 0; i < outputSize; i++) {
+                    outputBlocks[ch][i] = [];
+                    for (let j = 0; j < outputSize; j++) {
+                        const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+                        const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
+                        const material = new THREE.MeshLambertMaterial({
+                            color: baseColor,
+                            transparent: true,
+                            opacity: 0.4,
+                            emissive: baseColor.clone().multiplyScalar(0.08)
+                        });
+                        
+                        const block = new THREE.Mesh(geometry, material);
+                        block.position.set(
+                            outputOffset + j - outputSize/2 + 0.5,
+                            ch * 1.5,
+                            i - outputSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        
+                        scene.add(block);
+                        outputBlocks[ch][i][j] = block;
+                    }
+                }
+            }
         }
         
         // Initialize when page loads
