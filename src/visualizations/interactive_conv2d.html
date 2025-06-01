@@ -467,6 +467,11 @@
         // Calculated dimensions
         let paddedSize, outputSize, totalSteps;
         
+        // Global variables for text labels and arrows
+        let textLabels = [];
+        let arrowObjects = [];
+        let kernelArrows = []; // Store kernel-related arrows that need to move
+        
         // Dynamic image generation based on size
         function generateImage(size) {
             const image = [];
@@ -544,7 +549,7 @@
         function init() {
             // Create scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x222222);
+            scene.background = new THREE.Color(0x0f0f2a); // Slightly brighter background
             
             // Create camera
             const container = document.getElementById('container');
@@ -568,12 +573,12 @@
             const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
             scene.add(ambientLight);
             
-            // Add floor
+            // Create uniform grassy green floor
             const floorGeometry = new THREE.PlaneGeometry(100, 100);
             const floorMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x1a237e, // Dark blue
+                color: 0x2d5016, // Darker grassy green
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.9
             });
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.rotation.x = -Math.PI / 2;
@@ -581,10 +586,23 @@
             floor.receiveShadow = true;
             scene.add(floor);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Slightly reduced brightness
             directionalLight.position.set(10, 10, 5);
             directionalLight.castShadow = true;
             scene.add(directionalLight);
+            
+            // More eye-catching colored point lights
+            const pointLight1 = new THREE.PointLight(0x00cc66, 0.5, 50); // Eye-catching teal-green
+            pointLight1.position.set(15, 8, 0);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0xcc3366, 0.5, 50); // Eye-catching magenta
+            pointLight2.position.set(-15, 8, 0);
+            scene.add(pointLight2);
+            
+            const pointLight3 = new THREE.PointLight(0xff9900, 0.3, 50); // Eye-catching orange
+            pointLight3.position.set(0, 12, 15);
+            scene.add(pointLight3);
             
             // Initialize sliders
             initializeSliders();
@@ -605,6 +623,9 @@
             camera.aspect = aspect;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
+            
+            // Update text labels after resize
+            updateTextLabels();
         }
         
         function initializeSliders() {
@@ -652,34 +673,54 @@
         }
         
         function clearScene() {
-            // Remove all blocks from scene
+            // Clear text labels
+            textLabels.forEach(label => {
+                if (label.element && label.element.parentNode) {
+                    label.element.parentNode.removeChild(label.element);
+                }
+            });
+            textLabels = [];
+            
+            // Clear arrow objects
+            arrowObjects.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            arrowObjects = [];
+            kernelArrows = []; // Clear kernel arrows
+            
             const allBlocks = [];
             
             // Handle image blocks
-            imageBlocks.forEach(channel => {
-                if (Array.isArray(channel)) {
-                    channel.forEach(row => {
-                        if (Array.isArray(row)) {
-                            allBlocks.push(...row);
-                        }
-                    });
-                }
-            });
+            if (Array.isArray(imageBlocks)) {
+                imageBlocks.forEach(channel => {
+                    if (Array.isArray(channel)) {
+                        channel.forEach(row => {
+                            if (Array.isArray(row)) {
+                                allBlocks.push(...row);
+                            }
+                        });
+                    }
+                });
+            }
             
-            // Handle kernel blocks (now 4D array: [outCh][inCh][i][j])
-            kernelBlocks.forEach(outChannel => {
-                if (Array.isArray(outChannel)) {
-                    outChannel.forEach(inChannel => {
-                        if (Array.isArray(inChannel)) {
-                            inChannel.forEach(row => {
-                                if (Array.isArray(row)) {
-                                    allBlocks.push(...row);
-                                }
-                            });
-                        }
-                    });
-                }
-            });
+            // Handle kernel blocks (now 4D array)
+            if (Array.isArray(kernelBlocks)) {
+                kernelBlocks.forEach(outputChannel => {
+                    if (Array.isArray(outputChannel)) {
+                        outputChannel.forEach(inputChannel => {
+                            if (Array.isArray(inputChannel)) {
+                                inputChannel.forEach(row => {
+                                    if (Array.isArray(row)) {
+                                        allBlocks.push(...row);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
             
             // Handle output blocks
             if (Array.isArray(outputBlocks)) {
@@ -694,17 +735,232 @@
                 });
             }
             
-            allBlocks.forEach(block => {
-                if (block && scene) {
-                    scene.remove(block);
-                    if (block.geometry) block.geometry.dispose();
-                    if (block.material) block.material.dispose();
+            // Remove all blocks and their edge highlights
+            const objectsToRemove = [];
+            scene.traverse((object) => {
+                if (object.type === 'Mesh' && object !== scene.getObjectByName('floor')) {
+                    objectsToRemove.push(object);
+                } else if (object.type === 'LineSegments') {
+                    objectsToRemove.push(object);
                 }
+            });
+            
+            objectsToRemove.forEach(object => {
+                scene.remove(object);
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) object.material.dispose();
             });
             
             imageBlocks = [];
             kernelBlocks = [];
             outputBlocks = [];
+        }
+        
+        function createTextLabels() {
+            // Clear existing labels and arrows
+            textLabels.forEach(label => {
+                if (label.element && label.element.parentNode) {
+                    label.element.parentNode.removeChild(label.element);
+                }
+            });
+            textLabels = [];
+            
+            arrowObjects.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            arrowObjects = [];
+            kernelArrows = []; // Clear kernel arrows
+            
+            const container = document.getElementById('container');
+            
+            // Helper function to create a text label
+            function createLabel(text, position) {
+                const labelDiv = document.createElement('div');
+                labelDiv.style.position = 'absolute';
+                labelDiv.style.color = '#ffffff';
+                labelDiv.style.fontSize = '14px';
+                labelDiv.style.fontWeight = 'bold';
+                labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                labelDiv.style.padding = '4px 8px';
+                labelDiv.style.borderRadius = '4px';
+                labelDiv.style.border = '1px solid #4CAF50';
+                labelDiv.style.pointerEvents = 'none';
+                labelDiv.style.zIndex = '1000';
+                labelDiv.style.whiteSpace = 'nowrap';
+                
+                labelDiv.textContent = text;
+                container.appendChild(labelDiv);
+                
+                return {
+                    element: labelDiv,
+                    worldPosition: position.clone(),
+                    text: text
+                };
+            }
+            
+            // Helper function to create a 3D arrow along primary axes
+            function createArrow(startPosition, axis, length, color = 0x4CAF50, isKernelArrow = false) {
+                const arrowGroup = new THREE.Group();
+                
+                // Create arrow shaft (cylinder)
+                const shaftGeometry = new THREE.CylinderGeometry(0.05, 0.05, length, 8);
+                const shaftMaterial = new THREE.MeshLambertMaterial({ 
+                    color: color,
+                    emissive: new THREE.Color(color).multiplyScalar(0.2)
+                });
+                const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+                
+                // Create arrow head (cone)
+                const headGeometry = new THREE.ConeGeometry(0.15, 0.3, 8);
+                const headMaterial = new THREE.MeshLambertMaterial({ 
+                    color: color,
+                    emissive: new THREE.Color(color).multiplyScalar(0.2)
+                });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                
+                // Orient arrow based on axis and position shaft center at length/2 from start
+                if (axis === 'x') {
+                    // Rotate to point along X axis
+                    shaft.rotation.z = -Math.PI / 2;
+                    head.rotation.z = -Math.PI / 2;
+                    shaft.position.set(length / 2, 0, 0);
+                    head.position.set(length + 0.15, 0, 0);
+                } else if (axis === 'y') {
+                    // Default orientation is along Y axis
+                    shaft.position.set(0, length / 2, 0);
+                    head.position.set(0, length + 0.15, 0);
+                } else if (axis === 'z') {
+                    // Rotate to point along Z axis
+                    shaft.rotation.x = Math.PI / 2;
+                    head.rotation.x = Math.PI / 2;
+                    shaft.position.set(0, 0, length / 2);
+                    head.position.set(0, 0, length + 0.15);
+                }
+                
+                arrowGroup.add(shaft);
+                arrowGroup.add(head);
+                arrowGroup.position.copy(startPosition);
+                
+                // Store initial position and mark as kernel arrow if needed
+                if (isKernelArrow) {
+                    arrowGroup.initialPosition = startPosition.clone();
+                    arrowGroup.isKernelArrow = true;
+                    kernelArrows.push(arrowGroup);
+                }
+                
+                scene.add(arrowGroup);
+                arrowObjects.push(arrowGroup);
+                
+                return arrowGroup;
+            }
+            
+            // Input size arrows (X and Z axes) - start from corner intersection
+            const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, -0.6, -params.imageSize/2 - 0.3);
+            textLabels.push(createLabel('Input Size', inputCorner));
+            
+            // X-axis arrow for input width
+            createArrow(inputCorner, 'x', params.imageSize, 0x00dd77);
+            
+            // Z-axis arrow for input height
+            createArrow(inputCorner, 'z', params.imageSize, 0x00dd77);
+            
+            // Input channels arrow (Y axis) - single arrow, text at beginning
+            if (params.inputChannels > 1) {
+                const channelHeight = (params.inputChannels - 1) * 1.0;
+                const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, 0);
+                textLabels.push(createLabel('Input Channels', channelStart));
+                
+                createArrow(channelStart, 'y', channelHeight, 0x3377ff);
+            }
+            
+            // Padding arrows (X and Z axes) - start from corner intersection
+            if (params.padding > 0) {
+                const paddingCorner = new THREE.Vector3(-paddedSize/2, 0.3, -paddedSize/2 - 1.2);
+                textLabels.push(createLabel('Padding', paddingCorner));
+                
+                // X-axis arrow for padding width
+                createArrow(paddingCorner, 'x', params.padding, 0xff7700);
+                
+                // Z-axis arrow for padding depth
+                createArrow(paddingCorner, 'z', params.padding, 0xff7700);
+            }
+            
+            // Kernel size arrows (X and Z axes) - start from corner intersection
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const kernelStartHeight = maxInputChannelHeight + 1.0;
+            const kernelCorner = new THREE.Vector3(-params.kernelSize/2 - 0.3, kernelStartHeight + 0.6, -params.kernelSize/2 - 0.3);
+            
+            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner);
+            kernelSizeLabel.isKernelLabel = true;
+            textLabels.push(kernelSizeLabel);
+            
+            // X-axis arrow for kernel width (marked as kernel arrow)
+            createArrow(kernelCorner, 'x', params.kernelSize, 0xff2255, true);
+            
+            // Z-axis arrow for kernel height (marked as kernel arrow)
+            createArrow(kernelCorner, 'z', params.kernelSize, 0xff2255, true);
+            
+            // Kernel output channels arrow (Y axis) - showing kernel stack height
+            if (params.outputChannels > 1) {
+                const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.5 + 1.0);
+                const kernelOutputChannelStart = new THREE.Vector3(-2.2, kernelStartHeight, 0);
+                
+                const kernelOutputLabel = createLabel('Output Channels', kernelOutputChannelStart);
+                kernelOutputLabel.isKernelLabel = true;
+                textLabels.push(kernelOutputLabel);
+                
+                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, 0x22ff55, true);
+            }
+            
+            // Output size arrows (X and Z axes) - start from corner intersection
+            const outputOffset = paddedSize + 5;
+            const outputCorner = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
+            textLabels.push(createLabel('Output Size', outputCorner));
+            
+            // X-axis arrow for output width
+            createArrow(outputCorner, 'x', outputSize, 0xee0066);
+            
+            // Z-axis arrow for output height
+            createArrow(outputCorner, 'z', outputSize, 0xee0066);
+            
+            // Output channels arrow (Y axis) - moved to side closer to input
+            if (params.outputChannels > 1) {
+                const outputChannelHeight = (params.outputChannels - 1) * 1.5;
+                const outputChannelStart = new THREE.Vector3(outputOffset - outputSize/2 - 1.2, 0, 0);
+                textLabels.push(createLabel('Output Channels', outputChannelStart));
+                
+                createArrow(outputChannelStart, 'y', outputChannelHeight, 0x0099ee);
+            }
+        }
+        
+        function updateTextLabels() {
+            textLabels.forEach(label => {
+                // Project 3D position to 2D screen coordinates
+                const vector = label.worldPosition.clone();
+                vector.project(camera);
+                
+                const container = document.getElementById('container');
+                const rect = container.getBoundingClientRect();
+                
+                const x = (vector.x * 0.5 + 0.5) * rect.width;
+                const y = (vector.y * -0.5 + 0.5) * rect.height;
+                
+                // Only show label if it's in front of the camera
+                if (vector.z < 1) {
+                    label.element.style.left = x + 'px';
+                    label.element.style.top = y + 'px';
+                    label.element.style.display = 'block';
+                    
+                    // Fade out labels that are far from center or behind objects
+                    const centerDistance = Math.sqrt((vector.x) ** 2 + (vector.y) ** 2);
+                    const opacity = Math.max(0.3, 1 - centerDistance * 0.5);
+                    label.element.style.opacity = opacity;
+                } else {
+                    label.element.style.display = 'none';
+                }
+            });
         }
         
         function updateVisualization() {
@@ -741,6 +997,7 @@
             createImageBlocks();
             createKernelBlocks();
             createOutputBlocks();
+            createTextLabels(); // Add text labels after creating blocks
             
             // Reset animation state
             currentStep = 0;
@@ -759,15 +1016,15 @@
         function createImageBlocks() {
             const geometry = new THREE.BoxGeometry(1, 0.2, 1);
             const channelColors = [
-                0x4CAF50, // Green
-                0x2196F3, // Blue  
-                0xFF9800, // Orange
-                0x9C27B0  // Purple
+                0x00dd77, // Eye-catching emerald green
+                0x3377ff, // Eye-catching royal blue  
+                0xff7700, // Eye-catching vibrant orange
+                0xcc44ff  // Eye-catching vivid purple
             ];
             
             for (let ch = 0; ch < params.inputChannels; ch++) {
                 imageBlocks[ch] = [];
-                const channelOffset = ch * 1.0; // Increased spacing between channels
+                const channelOffset = ch * 1.0;
                 
                 for (let i = 0; i < paddedSize; i++) {
                     imageBlocks[ch][i] = [];
@@ -776,21 +1033,21 @@
                         const isPadding = (i < params.padding || i >= paddedSize - params.padding || 
                                          j < params.padding || j >= paddedSize - params.padding);
                         
-                        // Color based on value and channel
                         let color;
                         if (isPadding) {
-                            color = new THREE.Color(0x333333);
+                            color = new THREE.Color(0x555577); // More visible padding color
                         } else {
                             const baseColor = new THREE.Color(channelColors[ch % channelColors.length]);
                             const intensity = Math.min(1, value / 10);
-                            // Blend base channel color with intensity
-                            color = baseColor.clone().multiplyScalar(0.3 + intensity * 0.7);
+                            // Balanced brightness with good contrast
+                            color = baseColor.clone().multiplyScalar(0.5 + intensity * 0.6);
                         }
                         
                         const material = new THREE.MeshLambertMaterial({ 
                             color: color,
                             transparent: params.inputChannels > 1,
-                            opacity: params.inputChannels > 1 ? 0.9 : 1.0
+                            opacity: params.inputChannels > 1 ? 0.9 : 1.0,
+                            emissive: color.clone().multiplyScalar(0.08) // Subtle glow
                         });
                         const block = new THREE.Mesh(geometry, material);
                         
@@ -803,6 +1060,19 @@
                         block.receiveShadow = true;
                         
                         scene.add(block);
+                        
+                        // Add bright glowing edge highlight
+                        const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                        const edgeMaterial = new THREE.LineBasicMaterial({ 
+                            color: color.clone().multiplyScalar(2.0), // Much brighter edge color
+                            transparent: true,
+                            opacity: 0.8,
+                            linewidth: 2
+                        });
+                        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                        edges.position.copy(block.position);
+                        scene.add(edges);
+                        
                         imageBlocks[ch][i][j] = block;
                     }
                 }
@@ -812,15 +1082,15 @@
         function createKernelBlocks() {
             const geometry = new THREE.BoxGeometry(0.8, 0.4, 0.8);
             const kernelColors = [
-                0xff4444, // Red
-                0x44ff44, // Green
-                0x4444ff, // Blue
-                0xffff44  // Yellow
+                0xff2255, // Eye-catching crimson
+                0x22ff55, // Eye-catching lime
+                0x2255ff, // Eye-catching electric blue
+                0xffdd22  // Eye-catching golden yellow
             ];
             
             // Calculate the highest point of input blocks
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2; // Height of top input layer + block height
-            const kernelStartHeight = maxInputChannelHeight + 1.0; // Start kernels 1 unit above highest input
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const kernelStartHeight = maxInputChannelHeight + 1.0;
             
             // Create kernels for each output channel
             for (let outCh = 0; outCh < params.outputChannels; outCh++) {
@@ -835,30 +1105,28 @@
                         for (let j = 0; j < params.kernelSize; j++) {
                             const value = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
                             
-                            // Base color for this output channel
                             let baseColor = kernelColors[outCh % kernelColors.length];
                             let color;
                             
-                            // Modify color based on kernel value
                             if (value > 0) {
-                                color = new THREE.Color(baseColor).multiplyScalar(1.2); // Brighter for positive
+                                color = new THREE.Color(baseColor).multiplyScalar(1.2); // Balanced brightness for positive
                             } else if (value < 0) {
-                                color = new THREE.Color(baseColor).multiplyScalar(0.6); // Darker for negative
+                                color = new THREE.Color(baseColor).multiplyScalar(0.7); // Good contrast for negative
                             } else {
-                                color = new THREE.Color(0x888888); // Gray for zero
+                                color = new THREE.Color(0x999999); // Neutral gray for zero
                             }
                             
                             const material = new THREE.MeshLambertMaterial({ 
                                 color: color,
                                 transparent: true,
-                                opacity: 0.8
+                                opacity: 0.85,
+                                emissive: color.clone().multiplyScalar(0.12) // Subtle glow
                             });
                             const block = new THREE.Mesh(geometry, material);
                             
-                            // Keep input channel kernels tight together (0.1 spacing)
-                            // But separate output channels by larger amounts
-                            const inputChannelOffset = inCh * 0.5; // Tight spacing for input channels within same output
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0); // Large gap between output channels
+                            // Keep input channel kernels tight together
+                            const inputChannelOffset = inCh * 0.5;
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
                             
                             block.position.set(
                                 j - params.kernelSize/2 + 0.5, 
@@ -868,7 +1136,21 @@
                             block.castShadow = true;
                             
                             scene.add(block);
-                            kernelBlocks[outCh][inCh][i][j] = block;
+                            
+                            // Add bright glowing edge highlight
+                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                            const edgeMaterial = new THREE.LineBasicMaterial({ 
+                                color: color.clone().multiplyScalar(2.5), // Very bright edge color
+                                transparent: true,
+                                opacity: 0.9,
+                                linewidth: 3
+                            });
+                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                            edges.position.copy(block.position);
+                            scene.add(edges);
+                            
+                            // Store both block and edges together
+                            kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
                         }
                     }
                 }
@@ -877,27 +1159,28 @@
         
         function createOutputBlocks() {
             const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9);
-            const outputOffset = paddedSize + 5; // Increased distance from input
+            const outputOffset = paddedSize + 5;
             const outputChannelColors = [
-                0xE91E63, // Pink
-                0x00BCD4, // Cyan
-                0x8BC34A, // Light Green
-                0xFFC107  // Amber
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
             ];
             
-            // Initialize outputBlocks as a proper 3D array
             outputBlocks = [];
             for (let ch = 0; ch < params.outputChannels; ch++) {
                 outputBlocks[ch] = [];
-                const channelOffset = ch * 1.5; // Much larger spacing between output channels
+                const channelOffset = ch * 1.5;
                 
                 for (let i = 0; i < outputSize; i++) {
                     outputBlocks[ch][i] = [];
                     for (let j = 0; j < outputSize; j++) {
+                        const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
                         const material = new THREE.MeshLambertMaterial({ 
-                            color: outputChannelColors[ch % outputChannelColors.length],
+                            color: baseColor,
                             transparent: true,
-                            opacity: 0.3
+                            opacity: 0.4,
+                            emissive: baseColor.clone().multiplyScalar(0.08) // Subtle glow
                         });
                         const block = new THREE.Mesh(geometry, material);
                         
@@ -910,6 +1193,19 @@
                         block.receiveShadow = true;
                         
                         scene.add(block);
+                        
+                        // Add bright glowing edge highlight
+                        const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                        const edgeMaterial = new THREE.LineBasicMaterial({ 
+                            color: baseColor.clone().multiplyScalar(3.0), // Very bright edge color
+                            transparent: true,
+                            opacity: 0.7,
+                            linewidth: 2
+                        });
+                        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                        edges.position.copy(block.position);
+                        scene.add(edges);
+                        
                         outputBlocks[ch][i][j] = block;
                     }
                 }
@@ -920,12 +1216,15 @@
             const row = Math.floor(step / outputSize) * params.stride;
             const col = (step % outputSize) * params.stride;
             
-            // Move kernel blocks for all output channels and input channels
+            // Move kernel blocks and their edge highlights for all output channels and input channels
             for (let outCh = 0; outCh < params.outputChannels; outCh++) {
                 for (let inCh = 0; inCh < params.inputChannels; inCh++) {
                     for (let i = 0; i < params.kernelSize; i++) {
                         for (let j = 0; j < params.kernelSize; j++) {
-                            const block = kernelBlocks[outCh][inCh][i][j];
+                            const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                            const block = kernelObj.block;
+                            const edges = kernelObj.edges;
+                            
                             const dilatedI = i * params.dilation;
                             const dilatedJ = j * params.dilation;
                             const newX = (col + dilatedJ) - paddedSize/2 + 0.5;
@@ -937,13 +1236,58 @@
                             const inputChannelOffset = inCh * 0.5;
                             const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
                             
-                            block.position.x = newX;
-                            block.position.z = newZ;
-                            block.position.y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                            const newY = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                            
+                            // Move both block and edges together
+                            block.position.set(newX, newY, newZ);
+                            edges.position.set(newX, newY, newZ);
                         }
                     }
                 }
             }
+            
+            // Move kernel arrows to follow the kernel position
+            const kernelCenterX = col - paddedSize/2 + params.kernelSize/2;
+            const kernelCenterZ = row - paddedSize/2 + params.kernelSize/2;
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const kernelStartHeight = maxInputChannelHeight + 1.0;
+            
+            kernelArrows.forEach((arrow, index) => {
+                if (index < 2) { // First two arrows are kernel size arrows
+                    const newPosition = new THREE.Vector3(
+                        kernelCenterX - params.kernelSize/2 - 0.3,
+                        kernelStartHeight + 0.6,
+                        kernelCenterZ - params.kernelSize/2 - 0.3
+                    );
+                    arrow.position.copy(newPosition);
+                } else { // Kernel output channels arrow
+                    const newPosition = new THREE.Vector3(
+                        kernelCenterX - params.kernelSize/2 - 1.7,
+                        kernelStartHeight,
+                        kernelCenterZ - params.kernelSize/2
+                    );
+                    arrow.position.copy(newPosition);
+                }
+            });
+            
+            // Update kernel-related text labels
+            textLabels.forEach(label => {
+                if (label.isKernelLabel) {
+                    if (label.text === 'Kernel Size') {
+                        label.worldPosition.set(
+                            kernelCenterX - params.kernelSize/2 - 0.3,
+                            kernelStartHeight + 0.6,
+                            kernelCenterZ - params.kernelSize/2 - 0.3
+                        );
+                    } else if (label.text === 'Output Channels') {
+                        label.worldPosition.set(
+                            kernelCenterX - params.kernelSize/2 - 1.7,
+                            kernelStartHeight,
+                            kernelCenterZ - params.kernelSize/2
+                        );
+                    }
+                }
+            });
             
             // Calculate convolution values for all output channels
             const convValues = [];
@@ -978,21 +1322,25 @@
                 const outputCol = step % outputSize;
                 const outputBlock = outputBlocks[outCh][outputRow][outputCol];
                 
-                // Better color mapping for different types of operations
+                // Eye-catching but balanced color mapping
                 const absValue = Math.abs(convValue);
                 const normalizedValue = Math.min(1, absValue / 20);
                 
                 let color;
                 if (convValue > 3) {
-                    color = new THREE.Color().setHSL(0.15 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
+                    // Eye-catching warm colors for positive values
+                    color = new THREE.Color().setHSL(0.08 + outCh * 0.12, 0.9, 0.45 + normalizedValue * 0.35);
                 } else if (convValue < -3) {
-                    color = new THREE.Color().setHSL(0.55 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
+                    // Eye-catching cool colors for negative values
+                    color = new THREE.Color().setHSL(0.55 + outCh * 0.08, 0.9, 0.45 + normalizedValue * 0.35);
                 } else {
-                    color = new THREE.Color().setHSL(outCh * 0.15, 0.5, 0.3 + normalizedValue * 0.3);
+                    // Eye-catching neutral colors for small values
+                    color = new THREE.Color().setHSL(0.75 + outCh * 0.08, 0.7, 0.4 + normalizedValue * 0.4);
                 }
                 
                 outputBlock.material.color = color;
-                outputBlock.material.opacity = 0.6 + normalizedValue * 0.4;
+                outputBlock.material.opacity = 0.6 + normalizedValue * 0.3;
+                outputBlock.material.emissive = color.clone().multiplyScalar(0.15); // Balanced glow
             }
             
             // Update UI
@@ -1012,6 +1360,9 @@
             camera.position.z = Math.sin(time) * zoomLevel;
             camera.position.y = zoomLevel * 0.75 + Math.sin(time * 0.5) * 2;
             camera.lookAt(0, 0, 0);
+            
+            // Update text label positions
+            updateTextLabels();
             
             renderer.render(scene, camera);
             
@@ -1069,40 +1420,70 @@
             const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
             const kernelStartHeight = maxInputChannelHeight + 1.0;
             
-            // Reset kernel positions to initial position (now 4D array)
+            // Reset kernel positions and their edge highlights to initial position
             for (let outCh = 0; outCh < params.outputChannels; outCh++) {
                 for (let inCh = 0; inCh < params.inputChannels; inCh++) {
                     for (let i = 0; i < params.kernelSize; i++) {
                         for (let j = 0; j < params.kernelSize; j++) {
                             if (kernelBlocks[outCh] && kernelBlocks[outCh][inCh] && 
                                 kernelBlocks[outCh][inCh][i] && kernelBlocks[outCh][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                                const block = kernelObj.block;
+                                const edges = kernelObj.edges;
+                                
                                 const inputChannelOffset = inCh * 0.5;
                                 const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                                kernelBlocks[outCh][inCh][i][j].position.set(
-                                    j - params.kernelSize/2 + 0.5, 
-                                    kernelStartHeight + inputChannelOffset + outputChannelOffset, 
-                                    i - params.kernelSize/2 + 0.5
-                                );
+                                const initialY = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                                const initialX = j - params.kernelSize/2 + 0.5;
+                                const initialZ = i - params.kernelSize/2 + 0.5;
+                                
+                                // Reset both block and edges to initial position
+                                block.position.set(initialX, initialY, initialZ);
+                                edges.position.set(initialX, initialY, initialZ);
                             }
                         }
                     }
                 }
             }
             
-            // Reset output blocks to initial state
+            // Reset kernel arrows to initial positions
+            kernelArrows.forEach(arrow => {
+                if (arrow.initialPosition) {
+                    arrow.position.copy(arrow.initialPosition);
+                }
+            });
+            
+            // Reset kernel-related text labels to initial positions
+            textLabels.forEach(label => {
+                if (label.isKernelLabel) {
+                    if (label.text === 'Kernel Size') {
+                        label.worldPosition.set(
+                            -params.kernelSize/2 - 0.3,
+                            kernelStartHeight + 0.6,
+                            -params.kernelSize/2 - 0.3
+                        );
+                    } else if (label.text === 'Output Channels') {
+                        label.worldPosition.set(-2.2, kernelStartHeight, 0);
+                    }
+                }
+            });
+            
+            // Reset output blocks to eye-catching initial state
             const outputChannelColors = [
-                0xE91E63, // Pink
-                0x00BCD4, // Cyan
-                0x8BC34A, // Light Green
-                0xFFC107  // Amber
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
             ];
             
             for (let ch = 0; ch < params.outputChannels; ch++) {
                 for (let i = 0; i < outputSize; i++) {
                     for (let j = 0; j < outputSize; j++) {
                         if (outputBlocks[ch] && outputBlocks[ch][i] && outputBlocks[ch][i][j]) {
-                            outputBlocks[ch][i][j].material.color.setHex(outputChannelColors[ch % outputChannelColors.length]);
-                            outputBlocks[ch][i][j].material.opacity = 0.3;
+                            const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
+                            outputBlocks[ch][i][j].material.color = baseColor;
+                            outputBlocks[ch][i][j].material.opacity = 0.4;
+                            outputBlocks[ch][i][j].material.emissive = baseColor.clone().multiplyScalar(0.08);
                         }
                     }
                 }
