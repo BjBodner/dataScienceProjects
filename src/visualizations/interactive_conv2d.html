@@ -754,17 +754,17 @@
             
             const container = document.getElementById('container');
             
-            // Helper function to create a text label
-            function createLabel(text, position) {
+            // Helper function to create a text label with matching arrow color
+            function createLabel(text, position, arrowColor = 0x4CAF50) {
                 const labelDiv = document.createElement('div');
                 labelDiv.style.position = 'absolute';
                 labelDiv.style.color = '#ffffff';
                 labelDiv.style.fontSize = '14px';
                 labelDiv.style.fontWeight = 'bold';
-                labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
                 labelDiv.style.padding = '4px 8px';
                 labelDiv.style.borderRadius = '4px';
-                labelDiv.style.border = '1px solid #4CAF50';
+                labelDiv.style.border = `3px solid #${arrowColor.toString(16).padStart(6, '0')}`; // Thicker border matching arrow color
                 labelDiv.style.pointerEvents = 'none';
                 labelDiv.style.zIndex = '1000';
                 labelDiv.style.whiteSpace = 'nowrap';
@@ -840,35 +840,49 @@
             const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
             const adaptiveHeight = maxInputChannelHeight + 0.8; // Position above highest input plane
             
+            // Define distinct colors for each arrow type
+            const colors = {
+                inputSize: 0x00dd77,        // Bright green
+                inputChannels: 0x3377ff,    // Bright blue
+                padding: 0xff7700,          // Bright orange
+                kernelSize: 0xff2255,       // Bright red-pink
+                kernelOutputChannels: 0x22ff55, // Bright lime green
+                stride: 0xffdd22,           // Bright yellow
+                dilation: 0x2255ff,         // Bright blue-purple
+                outputSize: 0xee0066,       // Bright magenta
+                outputChannels: 0x0099ee    // Bright cyan
+            };
+            
             // Input size arrows (X and Z axes) - start from corner intersection with adaptive height
             const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, adaptiveHeight, -params.imageSize/2 - 0.3);
-            textLabels.push(createLabel('Input Size', inputCorner));
+            textLabels.push(createLabel('Input Size', inputCorner, colors.inputSize));
             
             // X-axis arrow for input width
-            createArrow(inputCorner, 'x', params.imageSize, 0x00dd77);
+            createArrow(inputCorner, 'x', params.imageSize, colors.inputSize);
             
             // Z-axis arrow for input height
-            createArrow(inputCorner, 'z', params.imageSize, 0x00dd77);
+            createArrow(inputCorner, 'z', params.imageSize, colors.inputSize);
             
             // Input channels arrow (Y axis) - single arrow, text at beginning
             if (params.inputChannels > 1) {
                 const channelHeight = (params.inputChannels - 1) * 1.0;
                 const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, 0);
-                textLabels.push(createLabel('Input Channels', channelStart));
+                textLabels.push(createLabel('Input Channels', channelStart, colors.inputChannels));
                 
-                createArrow(channelStart, 'y', channelHeight, 0x3377ff);
+                createArrow(channelStart, 'y', channelHeight, colors.inputChannels);
             }
             
             // Padding arrows (X and Z axes) - start from corner intersection with adaptive height
             if (params.padding > 0) {
                 const paddingCorner = new THREE.Vector3(-paddedSize/2, adaptiveHeight, -paddedSize/2);
-                textLabels.push(createLabel('Padding', paddingCorner));
+                const paddingCornerText = new THREE.Vector3(-paddedSize/2, adaptiveHeight + 0.8, -paddedSize/2);
+                textLabels.push(createLabel('Padding', paddingCornerText, colors.padding));
                 
                 // X-axis arrow for padding width
-                createArrow(paddingCorner, 'x', params.padding, 0xff7700);
+                createArrow(paddingCorner, 'x', params.padding, colors.padding);
                 
                 // Z-axis arrow for padding depth
-                createArrow(paddingCorner, 'z', params.padding, 0xff7700);
+                createArrow(paddingCorner, 'z', params.padding, colors.padding);
             }
             
             // Kernel size arrows (X and Z axes) - start from corner intersection
@@ -876,15 +890,15 @@
             const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
             const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 0.6, -effectiveKernelSize/2 - 0.3);
             
-            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner);
+            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize);
             kernelSizeLabel.isKernelLabel = true;
             textLabels.push(kernelSizeLabel);
             
             // X-axis arrow for kernel width (marked as kernel arrow)
-            createArrow(kernelCorner, 'x', effectiveKernelSize, 0xff2255, true);
+            createArrow(kernelCorner, 'x', effectiveKernelSize, colors.kernelSize, true);
             
             // Z-axis arrow for kernel height (marked as kernel arrow)
-            createArrow(kernelCorner, 'z', effectiveKernelSize, 0xff2255, true);
+            createArrow(kernelCorner, 'z', effectiveKernelSize, colors.kernelSize, true);
             
             // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows
             if (params.outputChannels > 1) {
@@ -894,39 +908,39 @@
                 
                 // Position text higher than kernel size text
                 const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.3);
-                const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition);
+                const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels);
                 kernelOutputLabel.isKernelLabel = true;
                 textLabels.push(kernelOutputLabel);
                 
-                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, 0x22ff55, true);
+                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true);
             }
             
             // Stride arrow (X axis) - single arrow, text at beginning with adaptive height
             if (params.stride > 1) {
                 const strideStart = new THREE.Vector3(paddedSize/2 + 0.8, adaptiveHeight, 0);
-                textLabels.push(createLabel('Stride', strideStart));
+                textLabels.push(createLabel('Stride', strideStart, colors.stride));
                 
-                createArrow(strideStart, 'x', params.stride, 0xffdd22);
+                createArrow(strideStart, 'x', params.stride, colors.stride);
             }
             
             // Dilation arrow (X axis) - single arrow, text at beginning
             if (params.dilation > 1) {
                 const dilationStart = new THREE.Vector3(-effectiveKernelSize/2, kernelStartHeight + 0.6, effectiveKernelSize/2 + 1.2);
-                textLabels.push(createLabel('Dilation', dilationStart));
+                textLabels.push(createLabel('Dilation', dilationStart, colors.dilation));
                 
-                createArrow(dilationStart, 'x', params.dilation, 0x2255ff);
+                createArrow(dilationStart, 'x', params.dilation, colors.dilation);
             }
             
             // Output size arrows (X and Z axes) - start from corner intersection
             const outputOffset = paddedSize + 5;
             const outputCorner = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
-            textLabels.push(createLabel('Output Size', outputCorner));
+            textLabels.push(createLabel('Output Size', outputCorner, colors.outputSize));
             
             // X-axis arrow for output width
-            createArrow(outputCorner, 'x', outputSize, 0xee0066);
+            createArrow(outputCorner, 'x', outputSize, colors.outputSize);
             
             // Z-axis arrow for output height
-            createArrow(outputCorner, 'z', outputSize, 0xee0066);
+            createArrow(outputCorner, 'z', outputSize, colors.outputSize);
             
             // Output channels arrow (Y axis) - at same corner as output size arrows
             if (params.outputChannels > 1) {
@@ -936,9 +950,9 @@
                 
                 // Position text higher than output size text
                 const outputChannelLabelPosition = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 1.8, -outputSize/2 - 0.3);
-                textLabels.push(createLabel('Output Channels', outputChannelLabelPosition));
+                textLabels.push(createLabel('Output Channels', outputChannelLabelPosition, colors.outputChannels));
                 
-                createArrow(outputChannelStart, 'y', outputChannelHeight, 0x0099ee);
+                createArrow(outputChannelStart, 'y', outputChannelHeight, colors.outputChannels);
             }
         }
         
