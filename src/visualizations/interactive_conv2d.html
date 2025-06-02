@@ -918,8 +918,14 @@
                 return arrowGroup;
             }
             
-            // Calculate adaptive height - above the highest input plane
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            // Calculate group positioning for the first group only (group 0)
+            const inputChannelsPerGroup = params.inputChannels / params.groups;
+            const groupSpacing = Math.max(paddedSize, (params.kernelSize - 1) * params.dilation + 1) + 3;
+            const totalGroupSpan = (params.groups - 1) * groupSpacing;
+            const firstGroupZOffset = -totalGroupSpan / 2; // Z offset for the first group
+            
+            // Calculate adaptive height - above the highest input plane (in first group)
+            const maxInputChannelHeight = (inputChannelsPerGroup - 1) * 1.0 + 0.2;
             const adaptiveHeight = maxInputChannelHeight + 0.8; // Position above highest input plane
             
             // Define distinct colors for each arrow type
@@ -935,8 +941,8 @@
                 outputChannels: 0x0099ee    // Bright cyan
             };
             
-            // Input size arrows (X and Z axes) - start from corner intersection with adaptive height
-            const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, adaptiveHeight, -params.imageSize/2 - 0.3);
+            // Input size arrows (X and Z axes) - start from corner intersection with adaptive height, first group only
+            const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, adaptiveHeight, firstGroupZOffset - params.imageSize/2 - 0.3);
             textLabels.push(createLabel('Input Size', inputCorner, colors.inputSize, 'inputSize'));
             
             // X-axis arrow for input width
@@ -945,19 +951,19 @@
             // Z-axis arrow for input height
             createArrow(inputCorner, 'z', params.imageSize, colors.inputSize, false, 'inputSize');
             
-            // Input channels arrow (Y axis) - single arrow, text at beginning
-            if (params.inputChannels > 1) {
-                const channelHeight = (params.inputChannels - 1) * 1.0;
-                const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, 0);
+            // Input channels arrow (Y axis) - single arrow, text at beginning, first group only
+            if (inputChannelsPerGroup > 1) {
+                const channelHeight = (inputChannelsPerGroup - 1) * 1.0;
+                const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, firstGroupZOffset);
                 textLabels.push(createLabel('Input Channels', channelStart, colors.inputChannels, 'inputChannels'));
                 
                 createArrow(channelStart, 'y', channelHeight, colors.inputChannels, false, 'inputChannels');
             }
             
-            // Padding arrows (X and Z axes) - start from corner intersection with adaptive height
+            // Padding arrows (X and Z axes) - start from corner intersection with adaptive height, first group only
             if (params.padding > 0) {
-                const paddingCorner = new THREE.Vector3(-paddedSize/2, adaptiveHeight, -paddedSize/2);
-                const paddingCornerText = new THREE.Vector3(-paddedSize/2, adaptiveHeight + 0.8, -paddedSize/2);
+                const paddingCorner = new THREE.Vector3(-paddedSize/2, adaptiveHeight, firstGroupZOffset - paddedSize/2);
+                const paddingCornerText = new THREE.Vector3(-paddedSize/2, adaptiveHeight + 0.8, firstGroupZOffset - paddedSize/2);
                 textLabels.push(createLabel('Padding', paddingCornerText, colors.padding, 'padding'));
                 
                 // X-axis arrow for padding width
@@ -967,10 +973,10 @@
                 createArrow(paddingCorner, 'z', params.padding, colors.padding, false, 'padding');
             }
             
-            // Kernel size arrows (X and Z axes) - start from corner intersection
+            // Kernel size arrows (X and Z axes) - start from corner intersection, first group only
             const kernelStartHeight = maxInputChannelHeight + 1.0;
             const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
-            const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
+            const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, firstGroupZOffset - effectiveKernelSize/2 - 0.5);
             
             const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize, 'kernelSize');
             kernelSizeLabel.movesWithKernel = true;
@@ -983,15 +989,15 @@
             // Z-axis arrow for kernel height (marked as kernel arrow)
             createArrow(kernelCorner, 'z', effectiveKernelSize, colors.kernelSize, true, 'kernelSize');
             
-            // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows
-            if (params.outputChannels > 1) {
-                // const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.3 + 1.0);
-                const kernelOutputChannelHeight = (params.outputChannels) * (params.inputChannels * 0.3)  + (params.outputChannels - 1) * 1.0;
+            // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows, first group only
+            const outputChannelsPerGroup = params.outputChannels / params.groups;
+            if (outputChannelsPerGroup > 1) {
+                const kernelOutputChannelHeight = (outputChannelsPerGroup) * (inputChannelsPerGroup * 0.3) + (outputChannelsPerGroup - 1) * 1.0;
                 // Use same corner position as kernel size arrows
-                const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
+                const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, firstGroupZOffset - effectiveKernelSize/2 - 0.5);
                 
                 // Position text higher than kernel size text
-                const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.5);
+                const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 1.8, firstGroupZOffset - effectiveKernelSize/2 - 0.5);
                 const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels, 'outputChannels');
                 kernelOutputLabel.movesWithKernel = true;
                 kernelOutputLabel.initialPosition = kernelOutputLabelPosition.clone();
@@ -1000,17 +1006,17 @@
                 createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true, 'outputChannels');
             }
             
-            // Stride arrow (X axis) - single arrow, text at beginning with adaptive height
+            // Stride arrow (X axis) - single arrow, text at beginning with adaptive height, first group only
             if (params.stride > 1) {
-                const strideStart = new THREE.Vector3(-paddedSize/2 + 0.5, adaptiveHeight, paddedSize/2 - 0.2);
+                const strideStart = new THREE.Vector3(-paddedSize/2 + 0.5, adaptiveHeight, firstGroupZOffset + paddedSize/2 - 0.2);
                 textLabels.push(createLabel('Stride', strideStart, colors.stride, 'stride'));
                 
                 createArrow(strideStart, 'x', params.stride-0.5, colors.stride, false, 'stride');
             }
             
-            // Dilation arrow (X axis) - single arrow, text at beginning
+            // Dilation arrow (X axis) - single arrow, text at beginning, first group only
             if (params.dilation > 1) {
-                const dilationStart = new THREE.Vector3(-effectiveKernelSize/2 + 0.2, kernelStartHeight, effectiveKernelSize/2 - 0.2);
+                const dilationStart = new THREE.Vector3(-effectiveKernelSize/2 + 0.2, kernelStartHeight, firstGroupZOffset + effectiveKernelSize/2 - 0.2);
                 const dilationLabel = createLabel('Dilation', dilationStart, colors.dilation, 'dilation');
                 dilationLabel.movesWithKernel = true;
                 dilationLabel.initialPosition = dilationStart.clone();
@@ -1019,7 +1025,7 @@
                 createArrow(dilationStart, 'x', params.dilation - 0.2, colors.dilation, true, 'dilation');
             }
             
-            // Output size arrows (X and Z axes) - start from corner intersection - always visible
+            // Output size arrows (X and Z axes) - start from corner intersection - always visible, original position
             const outputOffset = paddedSize + 5;
             const outputCorner = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
             textLabels.push(createLabel('Output Size', outputCorner, colors.outputSize, 'outputSize'));
@@ -1030,7 +1036,7 @@
             // Z-axis arrow for output height - always visible
             createArrow(outputCorner, 'z', outputSize, colors.outputSize, false, 'outputSize');
             
-            // Output channels arrow (Y axis) - at same corner as output size arrows
+            // Output channels arrow (Y axis) - at same corner as output size arrows, original position
             if (params.outputChannels > 1) {
                 const outputChannelHeight = (params.outputChannels - 1) * 1.5;
                 // Use same corner position as output size arrows
@@ -1235,132 +1241,159 @@
             const outputRow = Math.floor(stepInChannel / outputSize);
             const outputCol = stepInChannel % outputSize;
             
+            // Calculate which group this output channel belongs to
+            const outputChannelsPerGroup = params.outputChannels / params.groups;
+            const inputChannelsPerGroup = params.inputChannels / params.groups;
+            const currentGroup = Math.floor(currentOutputChannelForStep / outputChannelsPerGroup);
+            
+            // Calculate group positioning
+            const groupSpacing = Math.max(paddedSize, (params.kernelSize - 1) * params.dilation + 1) + 3;
+            const totalGroupSpan = (params.groups - 1) * groupSpacing;
+            const groupStartZ = -totalGroupSpan / 2;
+            const currentGroupZOffset = groupStartZ + currentGroup * groupSpacing;
+            
             // inputRow and inputCol are the top-left of the receptive field for the *active* kernel
             const inputRowForActiveKernel = outputRow * params.stride;
             const inputColForActiveKernel = outputCol * params.stride;
 
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const maxInputChannelHeight = (inputChannelsPerGroup - 1) * 1.0 + 0.2;
             const kernelStartHeight = maxInputChannelHeight + 1.0; // Base Y for kernel stacks
             
-            // --- BEGIN: Calculate delta for moving labels/arrows ---
-            // Delta is calculated based on the displacement of the *active* kernel stack (currentOutputChannelForStep)
-            const initial_00_elem_X = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
-            const initial_00_elem_Z = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
-            // Initial Y is for the base of the outCh=0 stack
-            const initial_00_elem_Y_base_for_outCh0 = kernelStartHeight; 
-
-            // Current world position of the (i=0, j=0) element for the *currentOutputChannelForStep*
-            const current_00_elem_padded_row = (inputRowForActiveKernel + params.padding) + 0 * params.dilation;
-            const current_00_elem_padded_col = (inputColForActiveKernel + params.padding) + 0 * params.dilation;
-            
-            const current_00_elem_X = current_00_elem_padded_col - paddedSize/2 + 0.5;
-            const current_00_elem_Z = current_00_elem_padded_row - paddedSize/2 + 0.5;
-            // Current Y is for the base of the *currentOutputChannelForStep* stack
-            const current_Y_base_for_active_outCh = kernelStartHeight + (currentOutputChannelForStep * (params.inputChannels * 0.3 + 1.0));
-
-            const deltaX = current_00_elem_X - initial_00_elem_X;
-            const deltaZ = current_00_elem_Z - initial_00_elem_Z;
-            const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
-            const delta = new THREE.Vector3(deltaX, deltaY, deltaZ);
-  
-            // Move kernel-attached labels
-            textLabels.forEach(label => {
-                if (label.movesWithKernel && label.initialPosition) {
-                    // For labels that should stay at the base Y of the kernel group,
-                    // apply only XZ delta.
-                    if (label.labelType === 'outputChannels' || label.labelType === 'kernelSize' || label.labelType === 'dilation') {
-                        const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
-                        label.worldPosition.copy(label.initialPosition).add(xzDelta);
-                    } else {
-                        // For other labels that might need full delta (if any)
-                        label.worldPosition.copy(label.initialPosition).add(delta);
-                    }
-                }
-            });
- 
-            // Move kernel-attached arrows
-            kernelArrows.forEach(arrow => {
-                if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
-                    // For arrows that should stay at the base Y of the kernel group,
-                    // apply only XZ delta.
-                    const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
-                    arrow.position.copy(arrow.initialPosition).add(xzDelta);
-                }
-            });
-            // --- END: Calculate delta for moving labels/arrows ---
-            
-            // Update input highlights (based on the active kernel's position)
+            // Update input highlights for the current group only
             let highlightIndex = 0;
-            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                for (let i = 0; i < params.kernelSize; i++) {
-                    for (let j = 0; j < params.kernelSize; j++) {
-                        if (highlightIndex < inputHighlights.length) {
-                            const highlight = inputHighlights[highlightIndex];
-                            const actualPaddedRow = inputRowForActiveKernel + i * params.dilation;
-                            const actualPaddedCol = inputColForActiveKernel + j * params.dilation;
-                            const x = actualPaddedCol - paddedSize/2 + 0.5;
-                            const z = actualPaddedRow - paddedSize/2 + 0.5;
-                            const y = inCh * 1.0 + 0.16;
-                            highlight.position.set(x, y, z);
-                            if (actualPaddedRow >= 0 && actualPaddedRow < paddedSize && actualPaddedCol >= 0 && actualPaddedCol < paddedSize) {
-                                highlight.visible = true;
-                            } else {
-                                highlight.visible = false;
+            for (let group = 0; group < params.groups; group++) {
+                const groupZOffset = groupStartZ + group * groupSpacing;
+                
+                for (let inCh = 0; inCh < inputChannelsPerGroup; inCh++) {
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            if (highlightIndex < inputHighlights.length) {
+                                const highlight = inputHighlights[highlightIndex];
+                                const actualPaddedRow = inputRowForActiveKernel + i * params.dilation;
+                                const actualPaddedCol = inputColForActiveKernel + j * params.dilation;
+                                const x = actualPaddedCol - paddedSize/2 + 0.5;
+                                const z = groupZOffset + actualPaddedRow - paddedSize/2 + 0.5;
+                                const y = inCh * 1.0 + 0.16;
+                                highlight.position.set(x, y, z);
+                                
+                                // Only show highlights for the current group
+                                if (group === currentGroup && 
+                                    actualPaddedRow >= 0 && actualPaddedRow < paddedSize && 
+                                    actualPaddedCol >= 0 && actualPaddedCol < paddedSize) {
+                                    highlight.visible = true;
+                                } else {
+                                    highlight.visible = false;
+                                }
                             }
+                            highlightIndex++;
                         }
-                        highlightIndex++;
                     }
                 }
             }
             
-            // Position and set visibility for ALL kernel stacks
-            for (let outChDisplayIdx = 0; outChDisplayIdx < params.outputChannels; outChDisplayIdx++) {
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            if (kernelBlocks[outChDisplayIdx] && kernelBlocks[outChDisplayIdx][inCh] &&
-                                kernelBlocks[outChDisplayIdx][inCh][i] && kernelBlocks[outChDisplayIdx][inCh][i][j]) {
-                                const kernelObj = kernelBlocks[outChDisplayIdx][inCh][i][j];
-                                
-                                // All kernel stacks are visible
-                                const makeVisible = true; 
+            // Position and set visibility for ALL kernel stacks in ALL groups
+            for (let group = 0; group < params.groups; group++) {
+                const kernelGroupZOffset = groupStartZ + group * groupSpacing;
+                
+                for (let outCh = 0; outCh < outputChannelsPerGroup; outCh++) {
+                    const globalOutCh = group * outputChannelsPerGroup + outCh;
+                    
+                    // Only show kernels for the current group
+                    const shouldShowKernel = (group === currentGroup);
+                    
+                    for (let inCh = 0; inCh < inputChannelsPerGroup; inCh++) {
+                        const globalInCh = group * inputChannelsPerGroup + inCh;
+                        
+                        for (let i = 0; i < params.kernelSize; i++) {
+                            for (let j = 0; j < params.kernelSize; j++) {
+                                // Safe array access with bounds checking
+                                if (kernelBlocks[globalOutCh] && 
+                                    kernelBlocks[globalOutCh][globalInCh] &&
+                                    kernelBlocks[globalOutCh][globalInCh][i] && 
+                                    kernelBlocks[globalOutCh][globalInCh][i][j]) {
+                                    
+                                    const kernelObj = kernelBlocks[globalOutCh][globalInCh][i][j];
+                                    
+                                    // Y position is based on the kernel's own group and channels
+                                    const inputChannelOffsetY = inCh * 0.3;
+                                    const outputChannelOffsetY = outCh * (inputChannelsPerGroup * 0.3 + 1.0);
+                                    const targetY = kernelStartHeight + inputChannelOffsetY + outputChannelOffsetY;
 
-                                // Y position is always based on the kernel's own outChDisplayIdx and inCh
-                                // to maintain the vertical stacking.
-                                const inputChannelOffsetY = inCh * 0.3;
-                                const outputChannelOffsetY = outChDisplayIdx * (params.inputChannels * 0.3 + 1.0);
-                                const targetY = kernelStartHeight + inputChannelOffsetY + outputChannelOffsetY;
+                                    // X,Z position is based on the active kernel's current receptive field and group
+                                    const currentPaddedRowForElement = inputRowForActiveKernel + i * params.dilation;
+                                    const currentPaddedColForElement = inputColForActiveKernel + j * params.dilation;
+                                    const targetX = currentPaddedColForElement - paddedSize / 2 + 0.5;
+                                    const targetZ = kernelGroupZOffset + currentPaddedRowForElement - paddedSize / 2 + 0.5;
+                                    
+                                    kernelObj.block.position.set(targetX, targetY, targetZ);
+                                    kernelObj.edges.position.set(targetX, targetY, targetZ);
 
-                                // X,Z position for ALL stacks is based on the active kernel's current receptive field.
-                                // This makes all kernel stacks move together in X and Z.
-                                const currentPaddedRowForElement = inputRowForActiveKernel + i * params.dilation;
-                                const currentPaddedColForElement = inputColForActiveKernel + j * params.dilation;
-                                const targetX = currentPaddedColForElement - paddedSize / 2 + 0.5;
-                                const targetZ = currentPaddedRowForElement - paddedSize / 2 + 0.5;
-                                
-                                kernelObj.block.position.set(targetX, targetY, targetZ);
-                                kernelObj.edges.position.set(targetX, targetY, targetZ);
-
-                                kernelObj.block.visible = makeVisible;
-                                kernelObj.edges.visible = makeVisible;
+                                    kernelObj.block.visible = shouldShowKernel;
+                                    kernelObj.edges.visible = shouldShowKernel;
+                                }
                             }
                         }
                     }
                 }
+            }
+            
+            // Only move labels/arrows when processing the first group (group 0)
+            if (currentGroup === 0) {
+                // Calculate delta for moving labels/arrows (based on first group)
+                const firstGroupZOffset = groupStartZ; // Z offset for first group
+                const initial_00_elem_X = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+                const initial_00_elem_Z = firstGroupZOffset + (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+                const initial_00_elem_Y_base_for_outCh0 = kernelStartHeight; 
+
+                const current_00_elem_padded_row = (inputRowForActiveKernel + params.padding) + 0 * params.dilation;
+                const current_00_elem_padded_col = (inputColForActiveKernel + params.padding) + 0 * params.dilation;
+                
+                const current_00_elem_X = current_00_elem_padded_col - paddedSize/2 + 0.5;
+                const current_00_elem_Z = firstGroupZOffset + current_00_elem_padded_row - paddedSize/2 + 0.5;
+                const localOutCh = currentOutputChannelForStep % outputChannelsPerGroup;
+                const current_Y_base_for_active_outCh = kernelStartHeight + (localOutCh * (inputChannelsPerGroup * 0.3 + 1.0));
+
+                const deltaX = current_00_elem_X - initial_00_elem_X;
+                const deltaZ = current_00_elem_Z - initial_00_elem_Z;
+                const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
+                const delta = new THREE.Vector3(deltaX, deltaY, deltaZ);
+
+                // Move kernel-attached labels
+                textLabels.forEach(label => {
+                    if (label.movesWithKernel && label.initialPosition) {
+                        if (label.labelType === 'outputChannels' || label.labelType === 'kernelSize' || label.labelType === 'dilation') {
+                            const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                            label.worldPosition.copy(label.initialPosition).add(xzDelta);
+                        } else {
+                            label.worldPosition.copy(label.initialPosition).add(delta);
+                        }
+                    }
+                });
+
+                // Move kernel-attached arrows
+                kernelArrows.forEach(arrow => {
+                    if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
+                        const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                        arrow.position.copy(arrow.initialPosition).add(xzDelta);
+                    }
+                });
             }
         }
         
         function calculateConvolutionAt(outputRow, outputCol, outputChannel) {
             let sum = 0;
             
-            // Calculate input position based on stride.
-            // This inputRow/Col is the top-left starting position of the kernel's receptive field
-            // *within the padded image dimensions* because outputSize was calculated using paddedSize.
+            // Calculate which group this output channel belongs to
+            const outputChannelsPerGroup = params.outputChannels / params.groups;
+            const inputChannelsPerGroup = params.inputChannels / params.groups;
+            const currentGroup = Math.floor(outputChannel / outputChannelsPerGroup);
+            
+            // Calculate input position based on stride
             const inputRowStartInPadded = outputRow * params.stride;
             const inputColStartInPadded = outputCol * params.stride;
             
-            // Sum over all input channels for this output channel
-            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+            // Sum over input channels in the same group only
+            for (let localInCh = 0; localInCh < inputChannelsPerGroup; localInCh++) {
                 // Convolve with kernel
                 for (let i = 0; i < params.kernelSize; i++) {
                     for (let j = 0; j < params.kernelSize; j++) {
@@ -1370,7 +1403,7 @@
                         
                         // Check bounds against paddedSize
                         if (imgRow >= 0 && imgRow < paddedSize && imgCol >= 0 && imgCol < paddedSize) {
-                            const imgValue = currentPaddedImage[imgRow][imgCol]; // currentPaddedImage is already padded
+                            const imgValue = currentPaddedImage[imgRow][imgCol];
                             // Use the kernel specific to the current outputChannel
                             const kernelValue = currentKernel[outputChannel][i][j]; 
                             sum += imgValue * kernelValue;
@@ -1464,42 +1497,56 @@
             });
             imageBlocks = [];
             
+            // Calculate group positioning
+            const inputChannelsPerGroup = params.inputChannels / params.groups;
+            const groupSpacing = Math.max(paddedSize, (params.kernelSize - 1) * params.dilation + 1) + 3; // Add buffer
+            const totalGroupSpan = (params.groups - 1) * groupSpacing;
+            const groupStartZ = -totalGroupSpan / 2;
+            
             // Create image blocks - thinner and not transparent with edge highlights
-            for (let ch = 0; ch < params.inputChannels; ch++) {
-                for (let i = 0; i < paddedSize; i++) {
-                    for (let j = 0; j < paddedSize; j++) {
-                        const value = currentPaddedImage[i][j];
-                        
-                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Made thinner (height 0.3 instead of 0.9)
-                        const material = new THREE.MeshLambertMaterial({
-                            color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
-                            transparent: false, // Not transparent
-                            opacity: 1.0 // Full opacity
-                        });
-                        
-                        const block = new THREE.Mesh(geometry, material);
-                        block.position.set(
-                            j - paddedSize/2 + 0.5,
-                            ch * 1.0,
-                            i - paddedSize/2 + 0.5
-                        );
-                        block.castShadow = true;
-                        
-                        // Create edge highlight for input blocks
-                        const edgeGeometry = new THREE.EdgesGeometry(geometry);
-                        const edgeMaterial = new THREE.LineBasicMaterial({ 
-                            color: 0xffffff, 
-                            linewidth: 2,
-                            transparent: true,
-                            opacity: 0.6
-                        });
-                        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-                        edges.position.copy(block.position);
-                        
-                        scene.add(block);
-                        scene.add(edges);
-                        imageBlocks.push(block);
-                        imageBlocks.push(edges); // Store edges too for cleanup
+            for (let group = 0; group < params.groups; group++) {
+                const groupZOffset = groupStartZ + group * groupSpacing;
+                
+                for (let ch = 0; ch < inputChannelsPerGroup; ch++) {
+                    const globalCh = group * inputChannelsPerGroup + ch;
+                    for (let i = 0; i < paddedSize; i++) {
+                        for (let j = 0; j < paddedSize; j++) {
+                            const value = currentPaddedImage[i][j];
+                            
+                            const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Made thinner (height 0.3 instead of 0.9)
+                            const material = new THREE.MeshLambertMaterial({
+                                color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
+                                transparent: false, // Not transparent
+                                opacity: 1.0 // Full opacity
+                            });
+                            
+                            const block = new THREE.Mesh(geometry, material);
+                            block.position.set(
+                                j - paddedSize/2 + 0.5,
+                                ch * 1.0,
+                                groupZOffset + i - paddedSize/2 + 0.5
+                            );
+                            block.castShadow = true;
+                            
+                            // Store group information
+                            block.userData = { group: group, localChannel: ch, globalChannel: globalCh };
+                            
+                            // Create edge highlight for input blocks
+                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                            const edgeMaterial = new THREE.LineBasicMaterial({ 
+                                color: 0xffffff, 
+                                linewidth: 2,
+                                transparent: true,
+                                opacity: 0.6
+                            });
+                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                            edges.position.copy(block.position);
+                            
+                            scene.add(block);
+                            scene.add(edges);
+                            imageBlocks.push(block);
+                            imageBlocks.push(edges); // Store edges too for cleanup
+                        }
                     }
                 }
             }
@@ -1508,17 +1555,23 @@
         function createKernelBlocks() {
             // Clear existing kernel blocks
             for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
-                for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
-                    for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
-                        for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
-                            if (kernelBlocks[outCh][inCh][i][j]) {
-                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
-                                scene.remove(kernelObj.block);
-                                scene.remove(kernelObj.edges);
-                                if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
-                                if (kernelObj.block.material) kernelObj.block.material.dispose();
-                                if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
-                                if (kernelObj.edges.material) kernelObj.edges.material.dispose();
+                if (kernelBlocks[outCh]) {
+                    for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
+                        if (kernelBlocks[outCh][inCh]) {
+                            for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
+                                if (kernelBlocks[outCh][inCh][i]) {
+                                    for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
+                                        if (kernelBlocks[outCh][inCh][i][j]) {
+                                            const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                                            scene.remove(kernelObj.block);
+                                            scene.remove(kernelObj.edges);
+                                            if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
+                                            if (kernelObj.block.material) kernelObj.block.material.dispose();
+                                            if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
+                                            if (kernelObj.edges.material) kernelObj.edges.material.dispose();
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1533,7 +1586,24 @@
             });
             inputHighlights = [];
             
+            // Initialize kernelBlocks array properly
             kernelBlocks = [];
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                kernelBlocks[outCh] = [];
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    kernelBlocks[outCh][inCh] = [];
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        kernelBlocks[outCh][inCh][i] = [];
+                    }
+                }
+            }
+            
+            // Calculate group positioning
+            const inputChannelsPerGroup = params.inputChannels / params.groups;
+            const outputChannelsPerGroup = params.outputChannels / params.groups;
+            const groupSpacing = Math.max(paddedSize, (params.kernelSize - 1) * params.dilation + 1) + 3;
+            const totalGroupSpan = (params.groups - 1) * groupSpacing;
+            const groupStartZ = -totalGroupSpan / 2;
             
             // Output channel colors to match kernels with their outputs
             const outputChannelColors = [
@@ -1543,83 +1613,102 @@
                 0xee9900  // Eye-catching amber
             ];
             
-            // Create input highlights for each channel
-            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                for (let i = 0; i < params.kernelSize; i++) {
-                    for (let j = 0; j < params.kernelSize; j++) {
-                        // Create highlight block
-                        const highlightGeometry = new THREE.BoxGeometry(0.95, 0.05, 0.95);
-                        const highlightMaterial = new THREE.MeshBasicMaterial({
-                            color: 0xffff00, // Bright yellow
-                            transparent: true,
-                            opacity: 0.6
-                        });
-                        const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-                        
-                        // Position slightly above the input plane
-                        highlight.position.set(0, inCh * 1.0 + 0.16, 0);
-                        highlight.visible = false; // Initially hidden
-                        
-                        scene.add(highlight);
-                        inputHighlights.push(highlight);
+            // Create input highlights for each group
+            for (let group = 0; group < params.groups; group++) {
+                const groupZOffset = groupStartZ + group * groupSpacing;
+                
+                for (let inCh = 0; inCh < inputChannelsPerGroup; inCh++) {
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            // Create highlight block
+                            const highlightGeometry = new THREE.BoxGeometry(0.95, 0.05, 0.95);
+                            const highlightMaterial = new THREE.MeshBasicMaterial({
+                                color: 0xffff00, // Bright yellow
+                                transparent: true,
+                                opacity: 0.6
+                            });
+                            const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+                            
+                            // Position slightly above the input plane
+                            highlight.position.set(0, inCh * 1.0 + 0.16, groupZOffset);
+                            highlight.visible = false; // Initially hidden
+                            highlight.userData = { group: group, localInputChannel: inCh };
+                            
+                            scene.add(highlight);
+                            inputHighlights.push(highlight);
+                        }
                     }
                 }
             }
             
-            // Create kernel blocks with dilation spacing
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                kernelBlocks[outCh] = [];
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    kernelBlocks[outCh][inCh] = [];
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        kernelBlocks[outCh][inCh][i] = [];
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const value = currentKernel[outCh][i][j];
-                            
-                            // Use output channel color for this kernel
-                            const baseColor = outputChannelColors[outCh % outputChannelColors.length];
-                            
-                            // Create block with smaller height
-                            const geometry = new THREE.BoxGeometry(0.8, 0.25, 0.8); // Reduced height from 0.4 to 0.25
-                            const material = new THREE.MeshLambertMaterial({
-                                color: baseColor, // Use output channel color
-                                transparent: false, 
-                                opacity: 1.0 // Changed from 0.8
-                            });
-                            const block = new THREE.Mesh(geometry, material);
-                            block.castShadow = true;
-                            
-                            // Create edge highlight
-                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
-                            const edgeMaterial = new THREE.LineBasicMaterial({ 
-                                color: 0xffffff, 
-                                linewidth: 3,
-                                transparent: true,
-                                opacity: 0.8
-                            });
-                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-                            
-                            // Position with dilation spacing
-                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-                            const kernelStartHeight = maxInputChannelHeight + 1.0;
-                            const inputChannelOffset = inCh * 0.3; // Reduced from 0.5 to 0.3
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.3 + 1.0); // Adjusted spacing
-                            const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
-                            
-                            // Apply dilation spacing
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const x = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                            const z = dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
-                            
-                            block.position.set(x, y, z);
-                            edges.position.set(x, y, z);
-                            
-                            scene.add(block);
-                            scene.add(edges);
-                            
-                            // Store block and edges (shadow removed)
-                            kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
+            // Create kernel blocks with dilation spacing for each group
+            for (let group = 0; group < params.groups; group++) {
+                const groupZOffset = groupStartZ + group * groupSpacing;
+                
+                for (let outCh = 0; outCh < outputChannelsPerGroup; outCh++) {
+                    const globalOutCh = group * outputChannelsPerGroup + outCh;
+                    
+                    for (let inCh = 0; inCh < inputChannelsPerGroup; inCh++) {
+                        const globalInCh = group * inputChannelsPerGroup + inCh;
+                        
+                        for (let i = 0; i < params.kernelSize; i++) {
+                            for (let j = 0; j < params.kernelSize; j++) {
+                                const value = currentKernel[globalOutCh][i][j];
+                                
+                                // Use output channel color for this kernel
+                                const baseColor = outputChannelColors[globalOutCh % outputChannelColors.length];
+                                
+                                // Create block with smaller height
+                                const geometry = new THREE.BoxGeometry(0.8, 0.25, 0.8);
+                                const material = new THREE.MeshLambertMaterial({
+                                    color: baseColor,
+                                    transparent: false, 
+                                    opacity: 1.0
+                                });
+                                const block = new THREE.Mesh(geometry, material);
+                                block.castShadow = true;
+                                
+                                // Store group information
+                                block.userData = { 
+                                    group: group, 
+                                    localOutputChannel: outCh,
+                                    localInputChannel: inCh,
+                                    globalOutputChannel: globalOutCh,
+                                    globalInputChannel: globalInCh
+                                };
+                                
+                                // Create edge highlight
+                                const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                                const edgeMaterial = new THREE.LineBasicMaterial({ 
+                                    color: 0xffffff, 
+                                    linewidth: 3,
+                                    transparent: true,
+                                    opacity: 0.8
+                                });
+                                const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                                
+                                // Position with dilation spacing and group offset
+                                const maxInputChannelHeight = (inputChannelsPerGroup - 1) * 1.0 + 0.2;
+                                const kernelStartHeight = maxInputChannelHeight + 1.0;
+                                const inputChannelOffset = inCh * 0.3;
+                                const outputChannelOffset = outCh * (inputChannelsPerGroup * 0.3 + 1.0);
+                                const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                                
+                                // Apply dilation spacing
+                                const dilatedI = i * params.dilation;
+                                const dilatedJ = j * params.dilation;
+                                const x = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                                const z = groupZOffset + dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                                
+                                block.position.set(x, y, z);
+                                edges.position.set(x, y, z);
+                                
+                                scene.add(block);
+                                scene.add(edges);
+                                
+                                // Store block and edges in the properly initialized array
+                                kernelBlocks[globalOutCh][globalInCh][i][j] = { block: block, edges: edges };
+                            }
                         }
                     }
                 }
@@ -1641,7 +1730,7 @@
             }
             outputBlocks = [];
             
-            // Create output blocks
+            // Create output blocks - keep original stacking, no group separation
             const outputOffset = paddedSize + 5;
             const outputChannelColors = [
                 0xee0066, // Eye-catching hot pink
@@ -1655,20 +1744,20 @@
                 for (let i = 0; i < outputSize; i++) {
                     outputBlocks[ch][i] = [];
                     for (let j = 0; j < outputSize; j++) {
-                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Same thickness as input planes
+                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9);
                         const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
                         const material = new THREE.MeshLambertMaterial({
                             color: baseColor,
                             transparent: true,
-                            opacity: 0.2, // Start very transparent
+                            opacity: 0.2,
                             emissive: baseColor.clone().multiplyScalar(0.08)
                         });
                         
                         const block = new THREE.Mesh(geometry, material);
                         block.position.set(
                             outputOffset + j - outputSize/2 + 0.5,
-                            ch * 1.5,
-                            i - outputSize/2 + 0.5
+                            ch * 1.5, // Keep original Y stacking
+                            i - outputSize/2 + 0.5 // Keep original Z position (no group offset)
                         );
                         block.castShadow = true;
                         
