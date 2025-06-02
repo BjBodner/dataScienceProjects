@@ -421,8 +421,8 @@
                         <h3>View Controls</h3>
                         <div class="slider-container">
                             <label>Speed:</label>
-                            <input type="range" id="animation-speed" min="200" max="2000" value="800" step="100">
-                            <span id="speed-val" class="slider-value">800ms</span>
+                            <input type="range" id="animation-speed" min="1" max="10" value="5" step="1">
+                            <span id="speed-val" class="slider-value">5</span>
                         </div>
                         <div class="slider-container">
                             <label>Zoom:</label>
@@ -463,7 +463,7 @@
         let currentStep = 0;
         let isAnimating = false;
         let frames = [];
-        let animationSpeed = 800;
+        let animationSpeed = 1100; // Default for speed value 5: 2000 - (5 * 180) = 1100
         let zoomLevel = 8; // Changed default to 8 (closer than before)
         let currentPaddedImage = [];
         let currentKernel = []; // Will become a 3D array [outCh][kRow][kCol]
@@ -663,8 +663,11 @@
             
             // Animation speed slider
             document.getElementById('animation-speed').addEventListener('input', function() {
-                animationSpeed = parseInt(this.value);
-                document.getElementById('speed-val').textContent = this.value + 'ms';
+                const speedValue = parseInt(this.value);
+                // Invert the speed: higher slider value = faster animation (lower delay)
+                // Map 1-10 to 1800-200ms (1 = slowest, 10 = fastest)
+                animationSpeed = 2000 - (speedValue * 180);
+                document.getElementById('speed-val').textContent = speedValue;
             });
             
             // Zoom level slider
