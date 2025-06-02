@@ -363,19 +363,25 @@
                     <div class="param-group">
                         <h3>Input Config</h3>
                         <div class="slider-container">
+                            <label>Image Size:</label>
+                            <input type="range" id="image-size" min="3" max="9" value="7" step="2">
+                            <span id="image-size-val" class="slider-value">7</span>
+                            <input type="checkbox" id="show-input-size" checked>
+                            <label for="show-input-size" class="checkbox-label">Show</label>
+                        </div>
+                        <div class="slider-container">
                             <label>Input Channels:</label>
                             <input type="range" id="input-channels" min="1" max="4" value="1" step="1">
                             <span id="input-channels-val" class="slider-value">1</span>
-                        </div>
-                        <div class="slider-container">
-                            <label>Size:</label>
-                            <input type="range" id="image-size" min="3" max="12" value="7" step="1">
-                            <span id="image-size-val" class="slider-value">7</span>
+                            <input type="checkbox" id="show-input-channels" checked>
+                            <label for="show-input-channels" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Padding:</label>
                             <input type="range" id="padding" min="0" max="3" value="1" step="1">
                             <span id="padding-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-padding" checked>
+                            <label for="show-padding" class="checkbox-label">Show</label>
                         </div>
                     </div>
                     
@@ -385,21 +391,29 @@
                             <label>Output Channels:</label>
                             <input type="range" id="output-channels" min="1" max="4" value="1" step="1">
                             <span id="output-channels-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-output-channels" checked>
+                            <label for="show-output-channels" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
-                            <label>Size:</label>
+                            <label>Kernel Size:</label>
                             <input type="range" id="kernel-size" min="1" max="7" value="3" step="2">
                             <span id="kernel-size-val" class="slider-value">3</span>
+                            <input type="checkbox" id="show-kernel-size" checked>
+                            <label for="show-kernel-size" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Stride:</label>
                             <input type="range" id="stride" min="1" max="3" value="1" step="1">
                             <span id="stride-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-stride" checked>
+                            <label for="show-stride" class="checkbox-label">Show</label>
                         </div>
                         <div class="slider-container">
                             <label>Dilation:</label>
                             <input type="range" id="dilation" min="1" max="3" value="1" step="1">
                             <span id="dilation-val" class="slider-value">1</span>
+                            <input type="checkbox" id="show-dilation" checked>
+                            <label for="show-dilation" class="checkbox-label">Show</label>
                         </div>
                     </div>
                     
@@ -407,13 +421,13 @@
                         <h3>View Controls</h3>
                         <div class="slider-container">
                             <label>Speed:</label>
-                            <input type="range" id="animation-speed" min="200" max="2000" value="800" step="100">
-                            <span id="speed-val" class="slider-value">800ms</span>
+                            <input type="range" id="animation-speed" min="1" max="10" value="5" step="1">
+                            <span id="speed-val" class="slider-value">5</span>
                         </div>
                         <div class="slider-container">
                             <label>Zoom:</label>
-                            <input type="range" id="zoom-level" min="1" max="10" value="9" step="1">
-                            <span id="zoom-val" class="slider-value">9</span>
+                            <input type="range" id="zoom-level" min="1" max="10" value="8" step="1">
+                            <span id="zoom-val" class="slider-value">8</span>
                         </div>
                     </div>
                 </div>
@@ -422,13 +436,12 @@
                     <button id="start-btn" onclick="startAnimation()">Start</button>
                     <button id="pause-btn" onclick="pauseAnimation()">Pause</button>
                     <button onclick="resetAnimation()">Reset</button>
-                    <button onclick="updateVisualization()">Update</button>
                 </div>
                 
                 <div id="info">
                     <div class="status" id="step-info">Step: 0/25 - Ready</div>
                     <div class="status" id="kernel-pos">Position: (0, 0)</div>
-                    <div class="status" id="conv-value">Value: 0</div>
+                    <div class="status" id="conv-value">Value: Not calculated</div>
                     <div id="output-info">
                         <div>Output: <span id="output-dims">5x5x1</span></div>
                         <div id="receptive-field">Field: 3x3</div>
@@ -446,12 +459,15 @@
         let imageBlocks = [];
         let kernelBlocks = [];
         let outputBlocks = [];
+        let inputHighlights = [];
         let currentStep = 0;
         let isAnimating = false;
         let frames = [];
-        let animationSpeed = 800;
-        let zoomLevel = 9; // Changed default to high zoom (close)
-        let currentImage, currentKernel, currentPaddedImage;
+        let animationSpeed = 1100; // Default for speed value 5: 2000 - (5 * 180) = 1100
+        let zoomLevel = 8; // Changed default to 8 (closer than before)
+        let currentPaddedImage = [];
+        let currentKernel = []; // Will become a 3D array [outCh][kRow][kCol]
+        let outputValues = [];
         
         // Convolution parameters
         let params = {
@@ -467,25 +483,30 @@
         // Calculated dimensions
         let paddedSize, outputSize, totalSteps;
         
+        // Global variables for text labels and arrows
+        let textLabels = [];
+        let arrowObjects = [];
+        let kernelArrows = []; // Store kernel-related arrows that need to move
+        
+        // Individual label visibility states
+        let labelVisibility = {
+            inputSize: true,
+            inputChannels: true,
+            outputChannels: true,
+            kernelSize: true,
+            stride: true,
+            padding: true,
+            dilation: true,
+            outputSize: true // Always true, not controlled by checkbox
+        };
+        
         // Dynamic image generation based on size
         function generateImage(size) {
             const image = [];
             for (let i = 0; i < size; i++) {
                 image[i] = [];
                 for (let j = 0; j < size; j++) {
-                    // Create interesting patterns based on position
-                    let value;
-                    if (i < size / 2) {
-                        value = 1 + Math.random() * 3; // Lower values for top half
-                    } else {
-                        value = 7 + Math.random() * 3; // Higher values for bottom half
-                    }
-                    // Add some noise based on distance from center
-                    const centerX = size / 2;
-                    const centerY = size / 2;
-                    const distance = Math.sqrt((i - centerX) ** 2 + (j - centerY) ** 2);
-                    value += Math.sin(distance) * 1.5;
-                    image[i][j] = Math.max(0.1, Math.min(9.9, value));
+                    image[i][j] = Math.floor(Math.random() * 10) + 1;
                 }
             }
             return image;
@@ -493,58 +514,33 @@
         
         // Generate kernel based on size and type
         function generateKernel(size) {
-            if (size === 1) {
-                return [[1]];
-            } else if (size === 3) {
-                // Sobel horizontal edge detector
-                return [
-                    [-1, -2, -1],
-                    [ 0,  0,  0],
-                    [ 1,  2,  1]
-                ];
-            } else if (size === 5) {
-                // Larger edge detector
-                return [
-                    [-1, -2, -2, -2, -1],
-                    [-1, -1, -1, -1, -1],
-                    [ 0,  0,  0,  0,  0],
-                    [ 1,  1,  1,  1,  1],
-                    [ 1,  2,  2,  2,  1]
-                ];
-            } else if (size === 7) {
-                // Even larger edge detector
-                const k = [];
-                for (let i = 0; i < 7; i++) {
-                    k[i] = [];
-                    for (let j = 0; j < 7; j++) {
-                        if (i < 3) k[i][j] = -1;
-                        else if (i === 3) k[i][j] = 0;
-                        else k[i][j] = 1;
-                    }
+            const kernel = [];
+            for (let i = 0; i < size; i++) {
+                kernel[i] = [];
+                for (let j = 0; j < size; j++) {
+                    kernel[i][j] = Math.random() * 2 - 1; // Random values between -1 and 1
                 }
-                return k;
             }
-            return [[1]]; // Default
+            return kernel;
         }
         
         // Calculate output dimensions
         function calculateDimensions() {
-            const effectiveKernel = params.kernelSize + (params.kernelSize - 1) * (params.dilation - 1);
             paddedSize = params.imageSize + 2 * params.padding;
-            outputSize = Math.floor((paddedSize - effectiveKernel) / params.stride) + 1;
-            totalSteps = outputSize * outputSize;
+            outputSize = Math.floor((paddedSize - (params.kernelSize - 1) * params.dilation - 1) / params.stride) + 1;
+            totalSteps = outputSize * outputSize * params.outputChannels;
             
             // Update UI
             document.getElementById('output-dims').textContent = 
                 `${outputSize}x${outputSize}x${params.outputChannels}`;
             document.getElementById('receptive-field').textContent = 
-                `Field: ${effectiveKernel}x${effectiveKernel}`;
+                `Field: ${params.kernelSize}x${params.kernelSize}`;
         }
         
         function init() {
             // Create scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x222222);
+            scene.background = new THREE.Color(0x0f0f2a); // Slightly brighter background
             
             // Create camera
             const container = document.getElementById('container');
@@ -568,12 +564,12 @@
             const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
             scene.add(ambientLight);
             
-            // Add floor
+            // Create uniform grassy green floor
             const floorGeometry = new THREE.PlaneGeometry(100, 100);
             const floorMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x1a237e, // Dark blue
+                color: 0x2d5016, // Darker grassy green
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.9
             });
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.rotation.x = -Math.PI / 2;
@@ -581,10 +577,23 @@
             floor.receiveShadow = true;
             scene.add(floor);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Slightly reduced brightness
             directionalLight.position.set(10, 10, 5);
             directionalLight.castShadow = true;
             scene.add(directionalLight);
+            
+            // More eye-catching colored point lights
+            const pointLight1 = new THREE.PointLight(0x00cc66, 0.5, 50); // Eye-catching teal-green
+            pointLight1.position.set(15, 8, 0);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0xcc3366, 0.5, 50); // Eye-catching magenta
+            pointLight2.position.set(-15, 8, 0);
+            scene.add(pointLight2);
+            
+            const pointLight3 = new THREE.PointLight(0xff9900, 0.3, 50); // Eye-catching orange
+            pointLight3.position.set(0, 12, 15);
+            scene.add(pointLight3);
             
             // Initialize sliders
             initializeSliders();
@@ -601,427 +610,486 @@
         
         function onWindowResize() {
             const container = document.getElementById('container');
-            const aspect = container.clientWidth / container.clientHeight;
-            camera.aspect = aspect;
+            camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
+            
+            // Update text labels after resize
+            updateTextLabels();
         }
         
         function initializeSliders() {
             const sliders = [
                 'image-size', 'input-channels', 'output-channels', 
-                'kernel-size', 'stride', 'padding', 'dilation', 'animation-speed', 'zoom-level'
+                'kernel-size', 'stride', 'dilation', 'padding'
             ];
             
             sliders.forEach(id => {
                 const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-val');
                 
-                // Map slider IDs to their corresponding value span IDs
-                const valueSpanId = id === 'animation-speed' ? 'speed-val' : 
-                                  id === 'zoom-level' ? 'zoom-val' : 
-                                  id + '-val';
-                const valueSpan = document.getElementById(valueSpanId);
-                
-                // Check if elements exist before setting up event handlers
-                if (!slider || !valueSpan) {
-                    console.warn(`Slider or value span not found for: ${id} (looking for ${valueSpanId})`);
-                    return;
-                }
-                
-                slider.oninput = function() {
-                    let value = this.value;
-                    if (id === 'animation-speed') {
-                        valueSpan.textContent = value + 'ms';
-                        animationSpeed = parseInt(value);
-                    } else if (id === 'zoom-level') {
-                        valueSpan.textContent = value;
-                        // Invert zoom: high slider value = close (low zoom number)
-                        // Map 1-10 slider to 50-10 camera distance
-                        zoomLevel = 60 - (parseInt(value) * 5); // Invert the scale
-                    } else {
-                        valueSpan.textContent = value;
-                        const paramName = id.replace('-', '').replace('size', 'Size').replace('channels', 'Channels');
-                        const finalParamName = paramName.charAt(0).toLowerCase() + paramName.slice(1);
-                        params[finalParamName] = parseInt(value);
-                        
-                        // Always update visualization when changing convolution parameters
-                        updateVisualization();
+                slider.addEventListener('input', function() {
+                    valueSpan.textContent = this.value;
+                    
+                    // Update the corresponding parameter
+                    switch(id) {
+                        case 'image-size':
+                            params.imageSize = parseInt(this.value);
+                            break;
+                        case 'input-channels':
+                            params.inputChannels = parseInt(this.value);
+                            break;
+                        case 'output-channels':
+                            params.outputChannels = parseInt(this.value);
+                            break;
+                        case 'kernel-size':
+                            params.kernelSize = parseInt(this.value);
+                            break;
+                        case 'stride':
+                            params.stride = parseInt(this.value);
+                            break;
+                        case 'dilation':
+                            params.dilation = parseInt(this.value);
+                            break;
+                        case 'padding':
+                            params.padding = parseInt(this.value);
+                            break;
                     }
-                };
+                    
+                    // Update the visualization
+                    updateVisualization();
+                });
             });
+            
+            // Animation speed slider
+            document.getElementById('animation-speed').addEventListener('input', function() {
+                const speedValue = parseInt(this.value);
+                // Invert the speed: higher slider value = faster animation (lower delay)
+                // Map 1-10 to 1800-200ms (1 = slowest, 10 = fastest)
+                animationSpeed = 2000 - (speedValue * 180);
+                document.getElementById('speed-val').textContent = speedValue;
+            });
+            
+            // Zoom level slider
+            document.getElementById('zoom-level').addEventListener('input', function() {
+                zoomLevel = parseInt(this.value);
+                document.getElementById('zoom-val').textContent = this.value;
+                // Camera position will be updated in the next render frame
+            });
+            
+            // Setup event listeners for checkboxes
+            document.getElementById('show-input-size').addEventListener('change', () => updateLabelVisibility('inputSize'));
+            document.getElementById('show-input-channels').addEventListener('change', () => updateLabelVisibility('inputChannels'));
+            document.getElementById('show-output-channels').addEventListener('change', () => updateLabelVisibility('outputChannels'));
+            document.getElementById('show-kernel-size').addEventListener('change', () => updateLabelVisibility('kernelSize'));
+            document.getElementById('show-stride').addEventListener('change', () => updateLabelVisibility('stride'));
+            document.getElementById('show-padding').addEventListener('change', () => updateLabelVisibility('padding'));
+            document.getElementById('show-dilation').addEventListener('change', () => updateLabelVisibility('dilation'));
         }
         
         function clearScene() {
-            // Remove all blocks from scene
-            const allBlocks = [];
-            
-            // Handle image blocks
-            imageBlocks.forEach(channel => {
-                if (Array.isArray(channel)) {
-                    channel.forEach(row => {
-                        if (Array.isArray(row)) {
-                            allBlocks.push(...row);
-                        }
-                    });
-                }
+            // Clear image blocks
+            imageBlocks.forEach(block => {
+                scene.remove(block);
+                if (block.geometry) block.geometry.dispose();
+                if (block.material) block.material.dispose();
             });
+            imageBlocks = [];
             
-            // Handle kernel blocks (now 4D array: [outCh][inCh][i][j])
-            kernelBlocks.forEach(outChannel => {
-                if (Array.isArray(outChannel)) {
-                    outChannel.forEach(inChannel => {
-                        if (Array.isArray(inChannel)) {
-                            inChannel.forEach(row => {
-                                if (Array.isArray(row)) {
-                                    allBlocks.push(...row);
-                                }
-                            });
-                        }
-                    });
-                }
+            // Clear input highlights
+            inputHighlights.forEach(highlight => {
+                scene.remove(highlight);
+                if (highlight.geometry) highlight.geometry.dispose();
+                if (highlight.material) highlight.material.dispose();
             });
+            inputHighlights = [];
             
-            // Handle output blocks
-            if (Array.isArray(outputBlocks)) {
-                outputBlocks.forEach(channel => {
-                    if (Array.isArray(channel)) {
-                        channel.forEach(row => {
-                            if (Array.isArray(row)) {
-                                allBlocks.push(...row);
+            // Clear kernel blocks
+            for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
+                for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
+                    for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
+                        for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
+                            if (kernelBlocks[outCh][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                                scene.remove(kernelObj.block);
+                                scene.remove(kernelObj.edges);
+                                if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
+                                if (kernelObj.block.material) kernelObj.block.material.dispose();
+                                if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
+                                if (kernelObj.edges.material) kernelObj.edges.material.dispose();
                             }
-                        });
+                        }
                     }
-                });
+                }
+            }
+            kernelBlocks = [];
+            
+            // Clear output blocks
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            scene.remove(outputBlocks[ch][i][j]);
+                            if (outputBlocks[ch][i][j].geometry) outputBlocks[ch][i][j].geometry.dispose();
+                            if (outputBlocks[ch][i][j].material) outputBlocks[ch][i][j].material.dispose();
+                        }
+                    }
+                }
+            }
+            outputBlocks = [];
+            
+            // Clear text labels and arrows
+            textLabels.forEach(label => {
+                if (label.element && label.element.parentNode) {
+                    label.element.parentNode.removeChild(label.element);
+                }
+            });
+            textLabels = [];
+            
+            arrowObjects.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            arrowObjects = [];
+            kernelArrows = [];
+        }
+        
+        function createTextLabels() {
+            // Clear existing labels and arrows
+            textLabels.forEach(label => {
+                if (label.element && label.element.parentNode) {
+                    label.element.parentNode.removeChild(label.element);
+                }
+            });
+            textLabels = [];
+            
+            arrowObjects.forEach(arrow => {
+                scene.remove(arrow);
+                if (arrow.geometry) arrow.geometry.dispose();
+                if (arrow.material) arrow.material.dispose();
+            });
+            arrowObjects = [];
+            kernelArrows = []; // Clear kernel arrows
+            
+            const container = document.getElementById('container');
+            
+            // Helper function to create a text label with matching arrow color
+            function createLabel(text, position, arrowColor = 0x4CAF50, labelType = '') {
+                const labelDiv = document.createElement('div');
+                labelDiv.style.position = 'absolute';
+                labelDiv.style.color = '#ffffff';
+                labelDiv.style.fontSize = '14px';
+                labelDiv.style.fontWeight = 'bold';
+                labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                labelDiv.style.padding = '4px 8px';
+                labelDiv.style.borderRadius = '4px';
+                labelDiv.style.border = `3px solid #${arrowColor.toString(16).padStart(6, '0')}`; // Thicker border matching arrow color
+                labelDiv.style.pointerEvents = 'none';
+                labelDiv.style.zIndex = '1000';
+                labelDiv.style.whiteSpace = 'nowrap';
+                // Output size is always visible, others respect checkbox state
+                labelDiv.style.display = (labelType === 'outputSize' || labelVisibility[labelType]) ? 'block' : 'none';
+                
+                labelDiv.textContent = text;
+                container.appendChild(labelDiv);
+                
+                // Store worldPosition for all labels for consistency in updateTextLabels
+                const labelObj = {
+                    element: labelDiv,
+                    worldPosition: position.clone(),
+                    text: text,
+                    labelType: labelType,
+                    movesWithKernel: false, // Default to not moving
+                    initialPosition: null // Default to null
+                };
+                // For labels that move with kernel, initialPosition will be set explicitly later
+                return labelObj;
             }
             
-            allBlocks.forEach(block => {
-                if (block && scene) {
-                    scene.remove(block);
-                    if (block.geometry) block.geometry.dispose();
-                    if (block.material) block.material.dispose();
+            // Helper function to create a 3D arrow along primary axes
+            function createArrow(startPosition, axis, length, color = 0x4CAF50, isKernelArrow = false, labelType = '') {
+                const arrowGroup = new THREE.Group();
+                
+                // Create arrow shaft (cylinder)
+                const shaftGeometry = new THREE.CylinderGeometry(0.05, 0.05, length, 8);
+                const shaftMaterial = new THREE.MeshLambertMaterial({ 
+                    color: color,
+                    emissive: new THREE.Color(color).multiplyScalar(0.2)
+                });
+                const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+                
+                // Create arrow head (cone)
+                const headGeometry = new THREE.ConeGeometry(0.15, 0.3, 8);
+                const headMaterial = new THREE.MeshLambertMaterial({ 
+                    color: color,
+                    emissive: new THREE.Color(color).multiplyScalar(0.2)
+                });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                
+                // Orient arrow based on axis and position shaft center at length/2 from start
+                if (axis === 'x') {
+                    // Rotate to point along X axis
+                    shaft.rotation.z = -Math.PI / 2;
+                    head.rotation.z = -Math.PI / 2;
+                    shaft.position.set(length / 2, 0, 0);
+                    head.position.set(length + 0.15, 0, 0);
+                } else if (axis === 'y') {
+                    // Default orientation is along Y axis
+                    shaft.position.set(0, length / 2, 0);
+                    head.position.set(0, length + 0.15, 0);
+                } else if (axis === 'z') {
+                    // Rotate to point along Z axis
+                    shaft.rotation.x = Math.PI / 2;
+                    head.rotation.x = Math.PI / 2;
+                    shaft.position.set(0, 0, length / 2);
+                    head.position.set(0, 0, length + 0.15);
                 }
-            });
+                
+                arrowGroup.add(shaft);
+                arrowGroup.add(head);
+                arrowGroup.position.copy(startPosition);
+                // Output size arrows are always visible, others respect checkbox state
+                arrowGroup.visible = (labelType === 'outputSize' || labelVisibility[labelType]);
+                arrowGroup.labelType = labelType;
+                
+                // Store initial position and mark as kernel arrow if needed
+                if (isKernelArrow) {
+                    arrowGroup.initialPosition = startPosition.clone();
+                    arrowGroup.isKernelArrow = true;
+                    kernelArrows.push(arrowGroup);
+                }
+                
+                scene.add(arrowGroup);
+                arrowObjects.push(arrowGroup);
+                
+                return arrowGroup;
+            }
             
-            imageBlocks = [];
-            kernelBlocks = [];
-            outputBlocks = [];
+            // Calculate adaptive height - above the highest input plane
+            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+            const adaptiveHeight = maxInputChannelHeight + 0.8; // Position above highest input plane
+            
+            // Define distinct colors for each arrow type
+            const colors = {
+                inputSize: 0x00dd77,        // Bright green
+                inputChannels: 0x3377ff,    // Bright blue
+                padding: 0xff7700,          // Bright orange
+                kernelSize: 0xff2255,       // Bright red-pink
+                kernelOutputChannels: 0x22ff55, // Bright lime green
+                stride: 0xffdd22,           // Bright yellow
+                dilation: 0x2255ff,         // Bright blue-purple
+                outputSize: 0xee0066,       // Bright magenta
+                outputChannels: 0x0099ee    // Bright cyan
+            };
+            
+            // Input size arrows (X and Z axes) - start from corner intersection with adaptive height
+            const inputCorner = new THREE.Vector3(-params.imageSize/2 - 0.3, adaptiveHeight, -params.imageSize/2 - 0.3);
+            textLabels.push(createLabel('Input Size', inputCorner, colors.inputSize, 'inputSize'));
+            
+            // X-axis arrow for input width
+            createArrow(inputCorner, 'x', params.imageSize, colors.inputSize, false, 'inputSize');
+            
+            // Z-axis arrow for input height
+            createArrow(inputCorner, 'z', params.imageSize, colors.inputSize, false, 'inputSize');
+            
+            // Input channels arrow (Y axis) - single arrow, text at beginning
+            if (params.inputChannels > 1) {
+                const channelHeight = (params.inputChannels - 1) * 1.0;
+                const channelStart = new THREE.Vector3(-paddedSize/2 - 1.2, 0, 0);
+                textLabels.push(createLabel('Input Channels', channelStart, colors.inputChannels, 'inputChannels'));
+                
+                createArrow(channelStart, 'y', channelHeight, colors.inputChannels, false, 'inputChannels');
+            }
+            
+            // Padding arrows (X and Z axes) - start from corner intersection with adaptive height
+            if (params.padding > 0) {
+                const paddingCorner = new THREE.Vector3(-paddedSize/2, adaptiveHeight, -paddedSize/2);
+                const paddingCornerText = new THREE.Vector3(-paddedSize/2, adaptiveHeight + 0.8, -paddedSize/2);
+                textLabels.push(createLabel('Padding', paddingCornerText, colors.padding, 'padding'));
+                
+                // X-axis arrow for padding width
+                createArrow(paddingCorner, 'x', params.padding, colors.padding, false, 'padding');
+                
+                // Z-axis arrow for padding depth
+                createArrow(paddingCorner, 'z', params.padding, colors.padding, false, 'padding');
+            }
+            
+            // Kernel size arrows (X and Z axes) - start from corner intersection
+            const kernelStartHeight = maxInputChannelHeight + 1.0;
+            const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
+            const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
+            
+            const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize, 'kernelSize');
+            kernelSizeLabel.movesWithKernel = true;
+            kernelSizeLabel.initialPosition = kernelCorner.clone();
+            textLabels.push(kernelSizeLabel);
+            
+            // X-axis arrow for kernel width (marked as kernel arrow)
+            createArrow(kernelCorner, 'x', effectiveKernelSize, colors.kernelSize, true, 'kernelSize');
+            
+            // Z-axis arrow for kernel height (marked as kernel arrow)
+            createArrow(kernelCorner, 'z', effectiveKernelSize, colors.kernelSize, true, 'kernelSize');
+            
+            // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows
+            if (params.outputChannels > 1) {
+                // const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.3 + 1.0);
+                const kernelOutputChannelHeight = (params.outputChannels) * (params.inputChannels * 0.3)  + (params.outputChannels - 1) * 1.0;
+                // Use same corner position as kernel size arrows
+                const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
+                
+                // Position text higher than kernel size text
+                const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.5);
+                const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels, 'outputChannels');
+                kernelOutputLabel.movesWithKernel = true;
+                kernelOutputLabel.initialPosition = kernelOutputLabelPosition.clone();
+                textLabels.push(kernelOutputLabel);
+                
+                createArrow(kernelOutputChannelStart, 'y', kernelOutputChannelHeight, colors.kernelOutputChannels, true, 'outputChannels');
+            }
+            
+            // Stride arrow (X axis) - single arrow, text at beginning with adaptive height
+            if (params.stride > 1) {
+                const strideStart = new THREE.Vector3(-paddedSize/2 + 0.5, adaptiveHeight, paddedSize/2 - 0.2);
+                textLabels.push(createLabel('Stride', strideStart, colors.stride, 'stride'));
+                
+                createArrow(strideStart, 'x', params.stride-0.5, colors.stride, false, 'stride');
+            }
+            
+            // Dilation arrow (X axis) - single arrow, text at beginning
+            if (params.dilation > 1) {
+                const dilationStart = new THREE.Vector3(-effectiveKernelSize/2 + 0.2, kernelStartHeight, effectiveKernelSize/2 - 0.2);
+                const dilationLabel = createLabel('Dilation', dilationStart, colors.dilation, 'dilation');
+                dilationLabel.movesWithKernel = true;
+                dilationLabel.initialPosition = dilationStart.clone();
+                textLabels.push(dilationLabel);
+                
+                createArrow(dilationStart, 'x', params.dilation - 0.2, colors.dilation, true, 'dilation');
+            }
+            
+            // Output size arrows (X and Z axes) - start from corner intersection - always visible
+            const outputOffset = paddedSize + 5;
+            const outputCorner = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
+            textLabels.push(createLabel('Output Size', outputCorner, colors.outputSize, 'outputSize'));
+            
+            // X-axis arrow for output width - always visible
+            createArrow(outputCorner, 'x', outputSize, colors.outputSize, false, 'outputSize');
+            
+            // Z-axis arrow for output height - always visible
+            createArrow(outputCorner, 'z', outputSize, colors.outputSize, false, 'outputSize');
+            
+            // Output channels arrow (Y axis) - at same corner as output size arrows
+            if (params.outputChannels > 1) {
+                const outputChannelHeight = (params.outputChannels - 1) * 1.5;
+                // Use same corner position as output size arrows
+                const outputChannelStart = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 0.3, -outputSize/2 - 0.3);
+                
+                // Position text higher than output size text
+                const outputChannelLabelPosition = new THREE.Vector3(outputOffset - outputSize/2 - 0.3, 1.8, -outputSize/2 - 0.3);
+                textLabels.push(createLabel('Output Channels', outputChannelLabelPosition, colors.outputChannels, 'outputChannels'));
+                
+                createArrow(outputChannelStart, 'y', outputChannelHeight, colors.outputChannels, false, 'outputChannels');
+            }
+            
+            // Store initial positions for kernel arrows
+            kernelArrows.forEach(arrow => {
+                arrow.initialPosition = arrow.position.clone();
+            });
+        }
+        
+        function updateTextLabels() {
+            textLabels.forEach(label => {
+                const screenPosition = label.worldPosition.clone();
+                screenPosition.project(camera);
+                
+                const x = (screenPosition.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+                const y = (screenPosition.y * -0.5 + 0.5) * renderer.domElement.clientHeight;
+                
+                label.element.style.left = x + 'px';
+                label.element.style.top = y + 'px';
+            });
         }
         
         function updateVisualization() {
-            if (isAnimating) {
-                pauseAnimation();
-            }
+            // Update parameter object from sliders
+            params.imageSize = parseInt(document.getElementById('image-size').value);
+            params.inputChannels = parseInt(document.getElementById('input-channels').value);
+            params.outputChannels = parseInt(document.getElementById('output-channels').value);
+            params.kernelSize = parseInt(document.getElementById('kernel-size').value);
+            params.stride = parseInt(document.getElementById('stride').value);
+            params.padding = parseInt(document.getElementById('padding').value);
+            params.dilation = parseInt(document.getElementById('dilation').value);
             
-            clearScene();
+            // Recalculate dimensions first
             calculateDimensions();
             
-            // Generate new data
-            currentImage = generateImage(params.imageSize);
-            currentKernel = generateKernel(params.kernelSize);
-            
-            // Create padded image
-            currentPaddedImage = [];
-            for (let i = 0; i < paddedSize; i++) {
-                currentPaddedImage[i] = [];
-                for (let j = 0; j < paddedSize; j++) {
-                    if (i < params.padding || i >= paddedSize - params.padding || 
-                        j < params.padding || j >= paddedSize - params.padding) {
-                        currentPaddedImage[i][j] = 0;
-                    } else {
-                        currentPaddedImage[i][j] = currentImage[i - params.padding][j - params.padding];
-                    }
-                }
-            }
-            
-            // Set camera position based on scene size and zoom level
-            camera.position.set(zoomLevel, zoomLevel * 0.75, zoomLevel);
-            camera.lookAt(0, 0, 0);
-            
-            // Create new blocks
-            createImageBlocks();
-            createKernelBlocks();
-            createOutputBlocks();
-            
             // Reset animation state
-            currentStep = 0;
-            updateStepInfo();
+            resetAnimation();
             
-            // Enable start button
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('pause-btn').disabled = true;
+            // Recreate everything with new parameters
+            resetParametersAndScene();
         }
         
         function updateStepInfo() {
-            document.getElementById('step-info').textContent = 
-                `Step: ${currentStep}/${totalSteps} - ${isAnimating ? 'Processing' : 'Ready'}`;
+            document.getElementById('step-info').textContent = `Step: ${currentStep}/${totalSteps} - Ready`;
         }
         
-        function createImageBlocks() {
-            const geometry = new THREE.BoxGeometry(1, 0.2, 1);
-            const channelColors = [
-                0x4CAF50, // Green
-                0x2196F3, // Blue  
-                0xFF9800, // Orange
-                0x9C27B0  // Purple
-            ];
-            
-            for (let ch = 0; ch < params.inputChannels; ch++) {
-                imageBlocks[ch] = [];
-                const channelOffset = ch * 1.0; // Increased spacing between channels
-                
-                for (let i = 0; i < paddedSize; i++) {
-                    imageBlocks[ch][i] = [];
-                    for (let j = 0; j < paddedSize; j++) {
-                        const value = currentPaddedImage[i][j];
-                        const isPadding = (i < params.padding || i >= paddedSize - params.padding || 
-                                         j < params.padding || j >= paddedSize - params.padding);
-                        
-                        // Color based on value and channel
-                        let color;
-                        if (isPadding) {
-                            color = new THREE.Color(0x333333);
-                        } else {
-                            const baseColor = new THREE.Color(channelColors[ch % channelColors.length]);
-                            const intensity = Math.min(1, value / 10);
-                            // Blend base channel color with intensity
-                            color = baseColor.clone().multiplyScalar(0.3 + intensity * 0.7);
-                        }
-                        
-                        const material = new THREE.MeshLambertMaterial({ 
-                            color: color,
-                            transparent: params.inputChannels > 1,
-                            opacity: params.inputChannels > 1 ? 0.9 : 1.0
-                        });
-                        const block = new THREE.Mesh(geometry, material);
-                        
-                        block.position.set(
-                            j - paddedSize/2 + 0.5, 
-                            channelOffset, 
-                            i - paddedSize/2 + 0.5
-                        );
-                        block.castShadow = true;
-                        block.receiveShadow = true;
-                        
-                        scene.add(block);
-                        imageBlocks[ch][i][j] = block;
-                    }
-                }
-            }
+        function onWindowResize() {
+            const container = document.getElementById('container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
         }
         
-        function createKernelBlocks() {
-            const geometry = new THREE.BoxGeometry(0.8, 0.4, 0.8);
-            const kernelColors = [
-                0xff4444, // Red
-                0x44ff44, // Green
-                0x4444ff, // Blue
-                0xffff44  // Yellow
-            ];
+        function resetAnimation() {
+            isAnimating = false;
+            currentStep = 0;
+            frames = [];
             
-            // Calculate the highest point of input blocks
-            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2; // Height of top input layer + block height
-            const kernelStartHeight = maxInputChannelHeight + 1.0; // Start kernels 1 unit above highest input
-            
-            // Create kernels for each output channel
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                kernelBlocks[outCh] = [];
-                
-                // Each output channel has kernels for all input channels
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    kernelBlocks[outCh][inCh] = [];
-                    
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        kernelBlocks[outCh][inCh][i] = [];
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const value = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
+            // Reset all output blocks to transparent state
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            const outputBlock = outputBlocks[ch][i][j];
+                            const baseColor = new THREE.Color([0xee0066, 0x0099ee, 0x99ee00, 0xee9900][ch % 4]);
                             
-                            // Base color for this output channel
-                            let baseColor = kernelColors[outCh % kernelColors.length];
-                            let color;
-                            
-                            // Modify color based on kernel value
-                            if (value > 0) {
-                                color = new THREE.Color(baseColor).multiplyScalar(1.2); // Brighter for positive
-                            } else if (value < 0) {
-                                color = new THREE.Color(baseColor).multiplyScalar(0.6); // Darker for negative
-                            } else {
-                                color = new THREE.Color(0x888888); // Gray for zero
-                            }
-                            
-                            const material = new THREE.MeshLambertMaterial({ 
-                                color: color,
-                                transparent: true,
-                                opacity: 0.8
-                            });
-                            const block = new THREE.Mesh(geometry, material);
-                            
-                            // Keep input channel kernels tight together (0.1 spacing)
-                            // But separate output channels by larger amounts
-                            const inputChannelOffset = inCh * 0.5; // Tight spacing for input channels within same output
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0); // Large gap between output channels
-                            
-                            block.position.set(
-                                j - params.kernelSize/2 + 0.5, 
-                                kernelStartHeight + inputChannelOffset + outputChannelOffset,
-                                i - params.kernelSize/2 + 0.5
-                            );
-                            block.castShadow = true;
-                            
-                            scene.add(block);
-                            kernelBlocks[outCh][inCh][i][j] = block;
-                        }
-                    }
-                }
-            }
-        }
-        
-        function createOutputBlocks() {
-            const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9);
-            const outputOffset = paddedSize + 5; // Increased distance from input
-            const outputChannelColors = [
-                0xE91E63, // Pink
-                0x00BCD4, // Cyan
-                0x8BC34A, // Light Green
-                0xFFC107  // Amber
-            ];
-            
-            // Initialize outputBlocks as a proper 3D array
-            outputBlocks = [];
-            for (let ch = 0; ch < params.outputChannels; ch++) {
-                outputBlocks[ch] = [];
-                const channelOffset = ch * 1.5; // Much larger spacing between output channels
-                
-                for (let i = 0; i < outputSize; i++) {
-                    outputBlocks[ch][i] = [];
-                    for (let j = 0; j < outputSize; j++) {
-                        const material = new THREE.MeshLambertMaterial({ 
-                            color: outputChannelColors[ch % outputChannelColors.length],
-                            transparent: true,
-                            opacity: 0.3
-                        });
-                        const block = new THREE.Mesh(geometry, material);
-                        
-                        block.position.set(
-                            j + outputOffset - outputSize/2 + 0.5, 
-                            channelOffset, 
-                            i - outputSize/2 + 0.5
-                        );
-                        block.castShadow = true;
-                        block.receiveShadow = true;
-                        
-                        scene.add(block);
-                        outputBlocks[ch][i][j] = block;
-                    }
-                }
-            }
-        }
-        
-        function updateKernelPosition(step) {
-            const row = Math.floor(step / outputSize) * params.stride;
-            const col = (step % outputSize) * params.stride;
-            
-            // Move kernel blocks for all output channels and input channels
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const block = kernelBlocks[outCh][inCh][i][j];
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const newX = (col + dilatedJ) - paddedSize/2 + 0.5;
-                            const newZ = (row + dilatedI) - paddedSize/2 + 0.5;
-                            
-                            // Use same spacing calculation as creation
-                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-                            const kernelStartHeight = maxInputChannelHeight + 1.0;
-                            const inputChannelOffset = inCh * 0.5;
-                            const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                            
-                            block.position.x = newX;
-                            block.position.z = newZ;
-                            block.position.y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                            outputBlock.material.color = baseColor;
+                            outputBlock.material.transparent = true;
+                            outputBlock.material.opacity = 0.2; // Reset to transparent
+                            outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.08);
+                            outputBlock.userData.calculated = false; // Mark as not calculated
                         }
                     }
                 }
             }
             
-            // Calculate convolution values for all output channels
-            const convValues = [];
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
-                let convValue = 0;
-                
-                // Sum over all input channels for this output channel
-                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
-                    for (let i = 0; i < params.kernelSize; i++) {
-                        for (let j = 0; j < params.kernelSize; j++) {
-                            const dilatedI = i * params.dilation;
-                            const dilatedJ = j * params.dilation;
-                            const imgRow = row + dilatedI;
-                            const imgCol = col + dilatedJ;
-                            
-                            if (imgRow < paddedSize && imgCol < paddedSize) {
-                                const imgVal = currentPaddedImage[imgRow][imgCol];
-                                // Each output channel can have different kernel values
-                                const kernVal = currentKernel[Math.min(i, currentKernel.length - 1)][Math.min(j, currentKernel[0].length - 1)];
-                                // Add slight variation per output channel for demonstration
-                                const channelVariation = 1 + (outCh * 0.2);
-                                convValue += imgVal * kernVal * channelVariation;
-                            }
-                        }
-                    }
+            // Reset kernel position to center without calculating
+            const centerRow = Math.floor(outputSize / 2);
+            const centerCol = Math.floor(outputSize / 2);
+            const centerStep = centerRow * outputSize + centerCol;
+            moveKernelToPosition(centerStep);
+            
+            // Reset kernel arrows to initial positions
+            kernelArrows.forEach(arrow => {
+                if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
+                    arrow.position.copy(arrow.initialPosition);
                 }
-                
-                convValues[outCh] = convValue;
-                
-                // Update output block for this channel
-                const outputRow = Math.floor(step / outputSize);
-                const outputCol = step % outputSize;
-                const outputBlock = outputBlocks[outCh][outputRow][outputCol];
-                
-                // Better color mapping for different types of operations
-                const absValue = Math.abs(convValue);
-                const normalizedValue = Math.min(1, absValue / 20);
-                
-                let color;
-                if (convValue > 3) {
-                    color = new THREE.Color().setHSL(0.15 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
-                } else if (convValue < -3) {
-                    color = new THREE.Color().setHSL(0.55 + outCh * 0.1, 0.8, 0.4 + normalizedValue * 0.4);
-                } else {
-                    color = new THREE.Color().setHSL(outCh * 0.15, 0.5, 0.3 + normalizedValue * 0.3);
+            });
+            
+            // Reset kernel-related text labels to their initial positions
+            textLabels.forEach(label => {
+                if (label.movesWithKernel && label.initialPosition) {
+                    label.worldPosition.copy(label.initialPosition);
                 }
-                
-                outputBlock.material.color = color;
-                outputBlock.material.opacity = 0.6 + normalizedValue * 0.4;
-            }
+            });
             
             // Update UI
-            const outputRow = Math.floor(step / outputSize);
-            const outputCol = step % outputSize;
-            document.getElementById('step-info').textContent = `Step: ${step + 1}/${totalSteps} - Processing`;
-            document.getElementById('kernel-pos').textContent = `Position: (${outputRow}, ${outputCol}) -> (${row}, ${col})`;
-            document.getElementById('conv-value').textContent = `Value: ${convValues[0].toFixed(2)}${params.outputChannels > 1 ? ` (+${params.outputChannels-1})` : ''}`;
-            
-            return convValues[0];
-        }
-        
-        function render() {
-            // Slower, gentler camera rotation
-            const time = Date.now() * 0.0002;
-            camera.position.x = Math.cos(time) * zoomLevel;
-            camera.position.z = Math.sin(time) * zoomLevel;
-            camera.position.y = zoomLevel * 0.75 + Math.sin(time * 0.5) * 2;
-            camera.lookAt(0, 0, 0);
-            
-            renderer.render(scene, camera);
-            
-            // Capture frame for video export
-            if (isAnimating) {
-                const canvas = renderer.domElement;
-                frames.push(canvas.toDataURL('image/png'));
-            }
-            
-            requestAnimationFrame(render);
+            document.getElementById('step-info').textContent = 'Ready to start';
+            document.getElementById('kernel-pos').textContent = `Position: (${centerRow}, ${centerCol}) -> (${centerRow}, ${centerCol})`;
+            document.getElementById('conv-value').textContent = 'Value: Not calculated';
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
         }
         
         function startAnimation() {
@@ -1034,24 +1102,7 @@
             document.getElementById('start-btn').disabled = true;
             document.getElementById('pause-btn').disabled = false;
             
-            const animate = () => {
-                if (!isAnimating || currentStep >= totalSteps) {
-                    if (currentStep >= totalSteps) {
-                        document.getElementById('step-info').textContent = `Complete! Steps: ${totalSteps}`;
-                        document.getElementById('start-btn').disabled = false;
-                        document.getElementById('pause-btn').disabled = true;
-                        isAnimating = false;
-                    }
-                    return;
-                }
-                
-                updateKernelPosition(currentStep);
-                currentStep++;
-                
-                setTimeout(animate, animationSpeed);
-            };
-            
-            animate();
+            animateStep();
         }
         
         function pauseAnimation() {
@@ -1060,59 +1111,568 @@
             document.getElementById('pause-btn').disabled = true;
         }
         
-        function resetAnimation() {
-            isAnimating = false;
-            currentStep = 0;
-            frames = [];
+        function animateStep() {
+            if (!isAnimating) { // Handles pause, or reset from slider change
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                return;
+            }
+        
+            if (currentStep >= totalSteps) { // Animation cycle completed
+                resetAnimation();
+                startAnimation();
+                return;
+            }
             
-            // Calculate the same heights as in creation
+            // Calculate current position for this step
+            const outputChannel = Math.floor(currentStep / (outputSize * outputSize));
+            const stepInChannel = currentStep % (outputSize * outputSize);
+            const outputRow = Math.floor(stepInChannel / outputSize);
+            const outputCol = stepInChannel % outputSize;
+            
+            // Move kernel to the current position
+            moveKernelToPosition(currentStep);
+            
+            // Calculate convolution value
+            const convValue = calculateConvolutionAt(outputRow, outputCol, outputChannel);
+            
+            // Store the calculated value
+            if (outputValues[outputChannel] && outputValues[outputChannel][outputRow]) {
+                outputValues[outputChannel][outputRow][outputCol] = convValue;
+            }
+            
+            // Update the visual appearance for ALL output channels at this outputRow and outputCol
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                if (outputBlocks[ch] && 
+                    outputBlocks[ch][outputRow] && 
+                    outputBlocks[ch][outputRow][outputCol]) {
+                    const outputBlock = outputBlocks[ch][outputRow][outputCol];
+                    
+                    // Change opacity to make it appear "calculated" (less transparent)
+                    outputBlock.material.opacity = 0.8; 
+                    
+                    // Update emissive color to give a glow, using the correct channel's color
+                    const outputChannelColors = [0xee0066, 0x0099ee, 0x99ee00, 0xee9900]; 
+                    const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
+                    outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.2);
+
+                    if (!outputBlock.userData) outputBlock.userData = {};
+                    outputBlock.userData.calculated = true;
+                }
+            }
+            
+            document.getElementById('conv-value').textContent = `Value: ${convValue.toFixed(2)}`;
+            document.getElementById('kernel-pos').textContent = `Position: (${outputCol}, ${outputRow}) Ch: ${outputChannel}`;
+            document.getElementById('step-info').textContent = `Step: ${currentStep + 1}/${totalSteps} - Processing`;
+            
+            currentStep++;
+            
+            if (isAnimating) {
+                setTimeout(() => {
+                    animateStep();
+                }, animationSpeed);
+            } else { 
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+            }
+        }
+        
+        function moveKernelToPosition(step) {
+            const currentOutputChannelForStep = Math.floor(step / (outputSize * outputSize));
+            const stepInChannel = step % (outputSize * outputSize);
+            const outputRow = Math.floor(stepInChannel / outputSize);
+            const outputCol = stepInChannel % outputSize;
+            
+            // inputRow and inputCol are the top-left of the receptive field for the *active* kernel
+            const inputRowForActiveKernel = outputRow * params.stride;
+            const inputColForActiveKernel = outputCol * params.stride;
+
             const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
-            const kernelStartHeight = maxInputChannelHeight + 1.0;
+            const kernelStartHeight = maxInputChannelHeight + 1.0; // Base Y for kernel stacks
             
-            // Reset kernel positions to initial position (now 4D array)
-            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+            // --- BEGIN: Calculate delta for moving labels/arrows ---
+            // Delta is calculated based on the displacement of the *active* kernel stack (currentOutputChannelForStep)
+            const initial_00_elem_X = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+            const initial_00_elem_Z = (0 * params.dilation - (params.kernelSize - 1) * params.dilation / 2) + 0.5;
+            // Initial Y is for the base of the outCh=0 stack
+            const initial_00_elem_Y_base_for_outCh0 = kernelStartHeight; 
+
+            // Current world position of the (i=0, j=0) element for the *currentOutputChannelForStep*
+            const current_00_elem_padded_row = (inputRowForActiveKernel + params.padding) + 0 * params.dilation;
+            const current_00_elem_padded_col = (inputColForActiveKernel + params.padding) + 0 * params.dilation;
+            
+            const current_00_elem_X = current_00_elem_padded_col - paddedSize/2 + 0.5;
+            const current_00_elem_Z = current_00_elem_padded_row - paddedSize/2 + 0.5;
+            // Current Y is for the base of the *currentOutputChannelForStep* stack
+            const current_Y_base_for_active_outCh = kernelStartHeight + (currentOutputChannelForStep * (params.inputChannels * 0.3 + 1.0));
+
+            const deltaX = current_00_elem_X - initial_00_elem_X;
+            const deltaZ = current_00_elem_Z - initial_00_elem_Z;
+            const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
+            const delta = new THREE.Vector3(deltaX, deltaY, deltaZ);
+  
+            // Move kernel-attached labels
+            textLabels.forEach(label => {
+                if (label.movesWithKernel && label.initialPosition) {
+                    // For labels that should stay at the base Y of the kernel group,
+                    // apply only XZ delta.
+                    if (label.labelType === 'outputChannels' || label.labelType === 'kernelSize' || label.labelType === 'dilation') {
+                        const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                        label.worldPosition.copy(label.initialPosition).add(xzDelta);
+                    } else {
+                        // For other labels that might need full delta (if any)
+                        label.worldPosition.copy(label.initialPosition).add(delta);
+                    }
+                }
+            });
+ 
+            // Move kernel-attached arrows
+            kernelArrows.forEach(arrow => {
+                if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
+                    // For arrows that should stay at the base Y of the kernel group,
+                    // apply only XZ delta.
+                    const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                    arrow.position.copy(arrow.initialPosition).add(xzDelta);
+                }
+            });
+            // --- END: Calculate delta for moving labels/arrows ---
+            
+            // Update input highlights (based on the active kernel's position)
+            let highlightIndex = 0;
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        if (highlightIndex < inputHighlights.length) {
+                            const highlight = inputHighlights[highlightIndex];
+                            const actualPaddedRow = inputRowForActiveKernel + i * params.dilation;
+                            const actualPaddedCol = inputColForActiveKernel + j * params.dilation;
+                            const x = actualPaddedCol - paddedSize/2 + 0.5;
+                            const z = actualPaddedRow - paddedSize/2 + 0.5;
+                            const y = inCh * 1.0 + 0.16;
+                            highlight.position.set(x, y, z);
+                            if (actualPaddedRow >= 0 && actualPaddedRow < paddedSize && actualPaddedCol >= 0 && actualPaddedCol < paddedSize) {
+                                highlight.visible = true;
+                            } else {
+                                highlight.visible = false;
+                            }
+                        }
+                        highlightIndex++;
+                    }
+                }
+            }
+            
+            // Position and set visibility for ALL kernel stacks
+            for (let outChDisplayIdx = 0; outChDisplayIdx < params.outputChannels; outChDisplayIdx++) {
                 for (let inCh = 0; inCh < params.inputChannels; inCh++) {
                     for (let i = 0; i < params.kernelSize; i++) {
                         for (let j = 0; j < params.kernelSize; j++) {
-                            if (kernelBlocks[outCh] && kernelBlocks[outCh][inCh] && 
-                                kernelBlocks[outCh][inCh][i] && kernelBlocks[outCh][inCh][i][j]) {
-                                const inputChannelOffset = inCh * 0.5;
-                                const outputChannelOffset = outCh * (params.inputChannels * 0.5 + 1.0);
-                                kernelBlocks[outCh][inCh][i][j].position.set(
-                                    j - params.kernelSize/2 + 0.5, 
-                                    kernelStartHeight + inputChannelOffset + outputChannelOffset, 
-                                    i - params.kernelSize/2 + 0.5
-                                );
+                            if (kernelBlocks[outChDisplayIdx] && kernelBlocks[outChDisplayIdx][inCh] &&
+                                kernelBlocks[outChDisplayIdx][inCh][i] && kernelBlocks[outChDisplayIdx][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outChDisplayIdx][inCh][i][j];
+                                
+                                // All kernel stacks are visible
+                                const makeVisible = true; 
+
+                                // Y position is always based on the kernel's own outChDisplayIdx and inCh
+                                // to maintain the vertical stacking.
+                                const inputChannelOffsetY = inCh * 0.3;
+                                const outputChannelOffsetY = outChDisplayIdx * (params.inputChannels * 0.3 + 1.0);
+                                const targetY = kernelStartHeight + inputChannelOffsetY + outputChannelOffsetY;
+
+                                // X,Z position for ALL stacks is based on the active kernel's current receptive field.
+                                // This makes all kernel stacks move together in X and Z.
+                                const currentPaddedRowForElement = inputRowForActiveKernel + i * params.dilation;
+                                const currentPaddedColForElement = inputColForActiveKernel + j * params.dilation;
+                                const targetX = currentPaddedColForElement - paddedSize / 2 + 0.5;
+                                const targetZ = currentPaddedRowForElement - paddedSize / 2 + 0.5;
+                                
+                                kernelObj.block.position.set(targetX, targetY, targetZ);
+                                kernelObj.edges.position.set(targetX, targetY, targetZ);
+
+                                kernelObj.block.visible = makeVisible;
+                                kernelObj.edges.visible = makeVisible;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        function calculateConvolutionAt(outputRow, outputCol, outputChannel) {
+            let sum = 0;
+            
+            // Calculate input position based on stride.
+            // This inputRow/Col is the top-left starting position of the kernel's receptive field
+            // *within the padded image dimensions* because outputSize was calculated using paddedSize.
+            const inputRowStartInPadded = outputRow * params.stride;
+            const inputColStartInPadded = outputCol * params.stride;
+            
+            // Sum over all input channels for this output channel
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                // Convolve with kernel
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Calculate actual position in padded image with dilation
+                        const imgRow = inputRowStartInPadded + i * params.dilation;
+                        const imgCol = inputColStartInPadded + j * params.dilation;
+                        
+                        // Check bounds against paddedSize
+                        if (imgRow >= 0 && imgRow < paddedSize && imgCol >= 0 && imgCol < paddedSize) {
+                            const imgValue = currentPaddedImage[imgRow][imgCol]; // currentPaddedImage is already padded
+                            // Use the kernel specific to the current outputChannel
+                            const kernelValue = currentKernel[outputChannel][i][j]; 
+                            sum += imgValue * kernelValue;
+                        }
+                    }
+                }
+            }
+            
+            return sum;
+        }
+        
+        function render() {
+            requestAnimationFrame(render);
+            
+            // Smooth camera rotation with limited range and deceleration
+            const time = Date.now() * 0.0003; // Slower rotation (was 0.0005)
+            const yawRange = 120; // Total range in degrees (240 - 120 = 120)
+            const minYaw = 120; // Minimum yaw angle in degrees
+            
+            // Create smooth oscillation with easing
+            const normalizedTime = (Math.sin(time) + 1) / 2; // Normalize to 0-1
+            const easedTime = normalizedTime * normalizedTime * (3 - 2 * normalizedTime); // Smooth step function for easing
+            
+            const yawDegrees = minYaw + easedTime * yawRange;
+            const yawRadians = (yawDegrees * Math.PI) / 180;
+            
+            // Invert zoom: higher slider value = closer camera
+            // Map slider 1-10 to camera distance 30-12 (inverted)
+            const radius = (11 - zoomLevel) * 3; // Inverted: 10->3, 1->30
+            const height = (11 - zoomLevel) * 2; // Inverted: 10->2, 1->20
+            
+            camera.position.x = Math.cos(yawRadians) * radius;
+            camera.position.z = Math.sin(yawRadians) * radius;
+            camera.position.y = height;
+            camera.lookAt(0, 0, 0);
+            
+            // Update text label positions
+            updateTextLabels();
+            
+            renderer.render(scene, camera);
+        }
+        
+        function updateLabelVisibility(labelType) {
+            // Skip output size as it's always visible
+            if (labelType === 'outputSize') return;
+            
+            const checkboxId = `show-${labelType.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            labelVisibility[labelType] = document.getElementById(checkboxId).checked;
+            
+            // Update visibility of related labels and arrows
+            textLabels.forEach(label => {
+                if (label.labelType === labelType) {
+                    label.element.style.display = labelVisibility[labelType] ? 'block' : 'none';
+                }
+            });
+            
+            arrowObjects.forEach(arrow => {
+                if (arrow.labelType === labelType) {
+                    arrow.visible = labelVisibility[labelType];
+                }
+            });
+        }
+        
+        function addPadding(image, padding) {
+            if (padding === 0) return image;
+            
+            const paddedSize = image.length + 2 * padding;
+            const paddedImage = [];
+            
+            for (let i = 0; i < paddedSize; i++) {
+                paddedImage[i] = [];
+                for (let j = 0; j < paddedSize; j++) {
+                    if (i < padding || i >= paddedSize - padding || 
+                        j < padding || j >= paddedSize - padding) {
+                        paddedImage[i][j] = 0; // Padding value
+                    } else {
+                        paddedImage[i][j] = image[i - padding][j - padding];
+                    }
+                }
+            }
+            
+            return paddedImage;
+        }
+        
+        function createImageBlocks() {
+            // Clear existing image blocks
+            imageBlocks.forEach(block => {
+                scene.remove(block);
+                if (block.geometry) block.geometry.dispose();
+                if (block.material) block.material.dispose();
+            });
+            imageBlocks = [];
+            
+            // Create image blocks - thinner and not transparent with edge highlights
+            for (let ch = 0; ch < params.inputChannels; ch++) {
+                for (let i = 0; i < paddedSize; i++) {
+                    for (let j = 0; j < paddedSize; j++) {
+                        const value = currentPaddedImage[i][j];
+                        
+                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Made thinner (height 0.3 instead of 0.9)
+                        const material = new THREE.MeshLambertMaterial({
+                            color: value === 0 ? 0x333333 : new THREE.Color().setHSL(0.3, 0.7, 0.3 + value * 0.05),
+                            transparent: false, // Not transparent
+                            opacity: 1.0 // Full opacity
+                        });
+                        
+                        const block = new THREE.Mesh(geometry, material);
+                        block.position.set(
+                            j - paddedSize/2 + 0.5,
+                            ch * 1.0,
+                            i - paddedSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        
+                        // Create edge highlight for input blocks
+                        const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                        const edgeMaterial = new THREE.LineBasicMaterial({ 
+                            color: 0xffffff, 
+                            linewidth: 2,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                        edges.position.copy(block.position);
+                        
+                        scene.add(block);
+                        scene.add(edges);
+                        imageBlocks.push(block);
+                        imageBlocks.push(edges); // Store edges too for cleanup
+                    }
+                }
+            }
+        }
+        
+        function createKernelBlocks() {
+            // Clear existing kernel blocks
+            for (let outCh = 0; outCh < kernelBlocks.length; outCh++) {
+                for (let inCh = 0; inCh < kernelBlocks[outCh].length; inCh++) {
+                    for (let i = 0; i < kernelBlocks[outCh][inCh].length; i++) {
+                        for (let j = 0; j < kernelBlocks[outCh][inCh][i].length; j++) {
+                            if (kernelBlocks[outCh][inCh][i][j]) {
+                                const kernelObj = kernelBlocks[outCh][inCh][i][j];
+                                scene.remove(kernelObj.block);
+                                scene.remove(kernelObj.edges);
+                                if (kernelObj.block.geometry) kernelObj.block.geometry.dispose();
+                                if (kernelObj.block.material) kernelObj.block.material.dispose();
+                                if (kernelObj.edges.geometry) kernelObj.edges.geometry.dispose();
+                                if (kernelObj.edges.material) kernelObj.edges.material.dispose();
                             }
                         }
                     }
                 }
             }
             
-            // Reset output blocks to initial state
+            // Clear existing input highlights
+            inputHighlights.forEach(highlight => {
+                scene.remove(highlight);
+                if (highlight.geometry) highlight.geometry.dispose();
+                if (highlight.material) highlight.material.dispose();
+            });
+            inputHighlights = [];
+            
+            kernelBlocks = [];
+            
+            // Output channel colors to match kernels with their outputs
             const outputChannelColors = [
-                0xE91E63, // Pink
-                0x00BCD4, // Cyan
-                0x8BC34A, // Light Green
-                0xFFC107  // Amber
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
             ];
             
-            for (let ch = 0; ch < params.outputChannels; ch++) {
-                for (let i = 0; i < outputSize; i++) {
-                    for (let j = 0; j < outputSize; j++) {
-                        if (outputBlocks[ch] && outputBlocks[ch][i] && outputBlocks[ch][i][j]) {
-                            outputBlocks[ch][i][j].material.color.setHex(outputChannelColors[ch % outputChannelColors.length]);
-                            outputBlocks[ch][i][j].material.opacity = 0.3;
-                        }
+            // Create input highlights for each channel
+            for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                for (let i = 0; i < params.kernelSize; i++) {
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Create highlight block
+                        const highlightGeometry = new THREE.BoxGeometry(0.95, 0.05, 0.95);
+                        const highlightMaterial = new THREE.MeshBasicMaterial({
+                            color: 0xffff00, // Bright yellow
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+                        
+                        // Position slightly above the input plane
+                        highlight.position.set(0, inCh * 1.0 + 0.16, 0);
+                        highlight.visible = false; // Initially hidden
+                        
+                        scene.add(highlight);
+                        inputHighlights.push(highlight);
                     }
                 }
             }
             
-            updateStepInfo();
-            document.getElementById('kernel-pos').textContent = 'Position: (0, 0)';
-            document.getElementById('conv-value').textContent = 'Value: 0';
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('pause-btn').disabled = true;
+            // Create kernel blocks with dilation spacing
+            for (let outCh = 0; outCh < params.outputChannels; outCh++) {
+                kernelBlocks[outCh] = [];
+                for (let inCh = 0; inCh < params.inputChannels; inCh++) {
+                    kernelBlocks[outCh][inCh] = [];
+                    for (let i = 0; i < params.kernelSize; i++) {
+                        kernelBlocks[outCh][inCh][i] = [];
+                        for (let j = 0; j < params.kernelSize; j++) {
+                            const value = currentKernel[outCh][i][j];
+                            
+                            // Use output channel color for this kernel
+                            const baseColor = outputChannelColors[outCh % outputChannelColors.length];
+                            
+                            // Create block with smaller height
+                            const geometry = new THREE.BoxGeometry(0.8, 0.25, 0.8); // Reduced height from 0.4 to 0.25
+                            const material = new THREE.MeshLambertMaterial({
+                                color: baseColor, // Use output channel color
+                                transparent: false, 
+                                opacity: 1.0 // Changed from 0.8
+                            });
+                            const block = new THREE.Mesh(geometry, material);
+                            block.castShadow = true;
+                            
+                            // Create edge highlight
+                            const edgeGeometry = new THREE.EdgesGeometry(geometry);
+                            const edgeMaterial = new THREE.LineBasicMaterial({ 
+                                color: 0xffffff, 
+                                linewidth: 3,
+                                transparent: true,
+                                opacity: 0.8
+                            });
+                            const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                            
+                            // Position with dilation spacing
+                            const maxInputChannelHeight = (params.inputChannels - 1) * 1.0 + 0.2;
+                            const kernelStartHeight = maxInputChannelHeight + 1.0;
+                            const inputChannelOffset = inCh * 0.3; // Reduced from 0.5 to 0.3
+                            const outputChannelOffset = outCh * (params.inputChannels * 0.3 + 1.0); // Adjusted spacing
+                            const y = kernelStartHeight + inputChannelOffset + outputChannelOffset;
+                            
+                            // Apply dilation spacing
+                            const dilatedI = i * params.dilation;
+                            const dilatedJ = j * params.dilation;
+                            const x = dilatedJ - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                            const z = dilatedI - (params.kernelSize - 1) * params.dilation / 2 + 0.5;
+                            
+                            block.position.set(x, y, z);
+                            edges.position.set(x, y, z);
+                            
+                            scene.add(block);
+                            scene.add(edges);
+                            
+                            // Store block and edges (shadow removed)
+                            kernelBlocks[outCh][inCh][i][j] = { block: block, edges: edges };
+                        }
+                    }
+                }
+            }
+        }
+        
+        function createOutputBlocks() {
+            // Clear existing output blocks
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            scene.remove(outputBlocks[ch][i][j]);
+                            if (outputBlocks[ch][i][j].geometry) outputBlocks[ch][i][j].geometry.dispose();
+                            if (outputBlocks[ch][i][j].material) outputBlocks[ch][i][j].material.dispose();
+                        }
+                    }
+                }
+            }
+            outputBlocks = [];
+            
+            // Create output blocks
+            const outputOffset = paddedSize + 5;
+            const outputChannelColors = [
+                0xee0066, // Eye-catching hot pink
+                0x0099ee, // Eye-catching sky blue
+                0x99ee00, // Eye-catching chartreuse
+                0xee9900  // Eye-catching amber
+            ];
+            
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                outputBlocks[ch] = [];
+                for (let i = 0; i < outputSize; i++) {
+                    outputBlocks[ch][i] = [];
+                    for (let j = 0; j < outputSize; j++) {
+                        const geometry = new THREE.BoxGeometry(0.9, 0.3, 0.9); // Same thickness as input planes
+                        const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
+                        const material = new THREE.MeshLambertMaterial({
+                            color: baseColor,
+                            transparent: true,
+                            opacity: 0.2, // Start very transparent
+                            emissive: baseColor.clone().multiplyScalar(0.08)
+                        });
+                        
+                        const block = new THREE.Mesh(geometry, material);
+                        block.position.set(
+                            outputOffset + j - outputSize/2 + 0.5,
+                            ch * 1.5,
+                            i - outputSize/2 + 0.5
+                        );
+                        block.castShadow = true;
+                        
+                        // Mark as not calculated yet
+                        block.userData = { calculated: false };
+                        
+                        scene.add(block);
+                        outputBlocks[ch][i][j] = block;
+                    }
+                }
+            }
+        }
+        
+        function resetParametersAndScene() {
+            // Clear existing Three.js objects
+            clearSceneObjects();
+            
+            // Initialize currentKernel as a 3D array [outCh][kRow][kCol]
+            currentKernel = [];
+            for (let oc = 0; oc < params.outputChannels; oc++) {
+                const singleKernel = [];
+                for (let i = 0; i < params.kernelSize; i++) {
+                    singleKernel[i] = [];
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Simple alternating pattern for kernel weights for now
+                        singleKernel[i][j] = ((i + j + oc) % 2 === 0) ? 1 : -1; 
+                    }
+                }
+                currentKernel.push(singleKernel);
+            }
+
+            // Initialize outputValues as a 3D array [outCh][row][col]
+            outputValues = [];
+            for (let oc = 0; oc < params.outputChannels; oc++) {
+                outputValues[oc] = [];
+                for (let i = 0; i < outputSize; i++) {
+                    outputValues[oc][i] = [];
+                    for (let j = 0; j < outputSize; j++) {
+                        outputValues[oc][i][j] = 0;
+                    }
+                }
+            }
+
+            // (Re)calculate sizes
+            paddedSize = params.imageSize + 2 * params.padding;
+            currentPaddedImage = generateImage(params.imageSize);
+            currentPaddedImage = addPadding(currentPaddedImage, params.padding);
+            
+            createImageBlocks();
+            createKernelBlocks();
+            createOutputBlocks();
+            createTextLabels();
+        }
+
+        function clearSceneObjects() {
+            clearScene();
         }
         
         // Initialize when page loads
