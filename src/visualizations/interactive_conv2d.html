@@ -930,7 +930,8 @@
             
             // Kernel output channels arrow (Y axis) - at same corner as kernel size arrows
             if (params.outputChannels > 1) {
-                const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.5 + 1.0);
+                // const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.3 + 1.0);
+                const kernelOutputChannelHeight = (params.outputChannels) * (params.inputChannels * 0.3)  + (params.outputChannels - 1) * 1.0;
                 // Use same corner position as kernel size arrows
                 const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
                 
