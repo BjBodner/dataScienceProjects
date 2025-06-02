@@ -916,7 +916,7 @@
             // Kernel size arrows (X and Z axes) - start from corner intersection
             const kernelStartHeight = maxInputChannelHeight + 1.0;
             const effectiveKernelSize = (params.kernelSize - 1) * params.dilation + 1;
-            const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 0.6, -effectiveKernelSize/2 - 0.3);
+            const kernelCorner = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
             
             const kernelSizeLabel = createLabel('Kernel Size', kernelCorner, colors.kernelSize, 'kernelSize');
             kernelSizeLabel.movesWithKernel = true;
@@ -933,10 +933,10 @@
             if (params.outputChannels > 1) {
                 const kernelOutputChannelHeight = (params.outputChannels - 1) * (params.inputChannels * 0.5 + 1.0);
                 // Use same corner position as kernel size arrows
-                const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 0.6, -effectiveKernelSize/2 - 0.3);
+                const kernelOutputChannelStart = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 0.0, -effectiveKernelSize/2 - 0.5);
                 
                 // Position text higher than kernel size text
-                const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.3, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.3);
+                const kernelOutputLabelPosition = new THREE.Vector3(-effectiveKernelSize/2 - 0.5, kernelStartHeight + 1.8, -effectiveKernelSize/2 - 0.5);
                 const kernelOutputLabel = createLabel('Output Channels', kernelOutputLabelPosition, colors.kernelOutputChannels, 'outputChannels');
                 kernelOutputLabel.movesWithKernel = true;
                 kernelOutputLabel.initialPosition = kernelOutputLabelPosition.clone();
@@ -1523,10 +1523,10 @@
                             const baseColor = outputChannelColors[outCh % outputChannelColors.length];
                             
                             // Create block with smaller height
-                            const geometry = new THREE.BoxGeometry(0.8, 0.4, 0.8); // Reduced height from 0.8 to 0.4
+                            const geometry = new THREE.BoxGeometry(0.8, 0.25, 0.8); // Reduced height from 0.4 to 0.25
                             const material = new THREE.MeshLambertMaterial({
                                 color: baseColor, // Use output channel color
-                                transparent: false, // Changed from true
+                                transparent: false, 
                                 opacity: 1.0 // Changed from 0.8
                             });
                             const block = new THREE.Mesh(geometry, material);
