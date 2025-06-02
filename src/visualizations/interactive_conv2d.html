@@ -383,6 +383,11 @@
                             <input type="checkbox" id="show-padding" checked>
                             <label for="show-padding" class="checkbox-label">Show</label>
                         </div>
+                        <div class="slider-container">
+                            <label>Groups:</label>
+                            <input type="range" id="groups" min="1" max="1" value="1" step="1">
+                            <span id="groups-val" class="slider-value">1</span>
+                        </div>
                     </div>
                     
                     <div class="param-group">
@@ -477,7 +482,8 @@
             kernelSize: 3,
             stride: 1,
             padding: 1,
-            dilation: 1
+            dilation: 1,
+            groups: 1
         };
         
         // Calculated dimensions
@@ -621,7 +627,7 @@
         function initializeSliders() {
             const sliders = [
                 'image-size', 'input-channels', 'output-channels', 
-                'kernel-size', 'stride', 'dilation', 'padding'
+                'kernel-size', 'stride', 'dilation', 'padding', 'groups'
             ];
             
             sliders.forEach(id => {
@@ -629,31 +635,44 @@
                 const valueSpan = document.getElementById(id + '-val');
                 
                 slider.addEventListener('input', function() {
-                    valueSpan.textContent = this.value;
-                    
-                    // Update the corresponding parameter
-                    switch(id) {
-                        case 'image-size':
-                            params.imageSize = parseInt(this.value);
-                            break;
-                        case 'input-channels':
-                            params.inputChannels = parseInt(this.value);
-                            break;
-                        case 'output-channels':
-                            params.outputChannels = parseInt(this.value);
-                            break;
-                        case 'kernel-size':
-                            params.kernelSize = parseInt(this.value);
-                            break;
-                        case 'stride':
-                            params.stride = parseInt(this.value);
-                            break;
-                        case 'dilation':
-                            params.dilation = parseInt(this.value);
-                            break;
-                        case 'padding':
-                            params.padding = parseInt(this.value);
-                            break;
+                    // Handle groups slider specially - map position to valid divisor
+                    if (id === 'groups') {
+                        const position = parseInt(this.value);
+                        const validGroups = getValidGroups(params.inputChannels, params.outputChannels);
+                        const actualGroups = validGroups[position - 1];
+                        params.groups = actualGroups;
+                        valueSpan.textContent = actualGroups;
+                    } else {
+                        valueSpan.textContent = this.value;
+                        
+                        // Update the corresponding parameter
+                        switch(id) {
+                            case 'image-size':
+                                params.imageSize = parseInt(this.value);
+                                break;
+                            case 'input-channels':
+                                params.inputChannels = parseInt(this.value);
+                                // Update groups slider when input channels change
+                                updateGroupsSlider();
+                                break;
+                            case 'output-channels':
+                                params.outputChannels = parseInt(this.value);
+                                // Update groups slider when output channels change
+                                updateGroupsSlider();
+                                break;
+                            case 'kernel-size':
+                                params.kernelSize = parseInt(this.value);
+                                break;
+                            case 'stride':
+                                params.stride = parseInt(this.value);
+                                break;
+                            case 'dilation':
+                                params.dilation = parseInt(this.value);
+                                break;
+                            case 'padding':
+                                params.padding = parseInt(this.value);
+                                break;
+                        }
                     }
                     
                     // Update the visualization
@@ -685,6 +704,39 @@
             document.getElementById('show-stride').addEventListener('change', () => updateLabelVisibility('stride'));
             document.getElementById('show-padding').addEventListener('change', () => updateLabelVisibility('padding'));
             document.getElementById('show-dilation').addEventListener('change', () => updateLabelVisibility('dilation'));
+            
+            // Initialize groups slider
+            updateGroupsSlider();
+        }
+        
+        // Helper function to get valid group values (divisors of both input and output channels)
+        function getValidGroups(inputChannels, outputChannels) {
+            const validGroups = [];
+            const maxGroups = Math.min(inputChannels, outputChannels); // Groups can't exceed either channel count
+            
+            for (let i = 1; i <= maxGroups; i++) {
+                // Groups must divide both input and output channels evenly
+                if (inputChannels % i === 0 && outputChannels % i === 0) {
+                    validGroups.push(i);
+                }
+            }
+            return validGroups;
+        }
+        
+        // Helper function to update groups slider based on current input and output channels
+        function updateGroupsSlider() {
+            const groupsSlider = document.getElementById('groups');
+            const groupsValue = document.getElementById('groups-val');
+            const validGroups = getValidGroups(params.inputChannels, params.outputChannels);
+            
+            // Set slider range based on number of valid options
+            groupsSlider.min = 1;
+            groupsSlider.max = validGroups.length;
+            
+            // Reset to first valid option (groups = 1, or the first valid option)
+            groupsSlider.value = 1;
+            params.groups = validGroups.length > 0 ? validGroups[0] : 1;
+            groupsValue.textContent = params.groups;
         }
         
         function clearScene() {
