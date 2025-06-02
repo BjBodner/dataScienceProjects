@@ -1263,7 +1263,7 @@
             const maxInputChannelHeight = (inputChannelsPerGroup - 1) * 1.0 + 0.2;
             const kernelStartHeight = maxInputChannelHeight + 1.0; // Base Y for kernel stacks
             
-            // Update input highlights for the current group only
+            // Update input highlights for ALL groups
             let highlightIndex = 0;
             for (let group = 0; group < params.groups; group++) {
                 const groupZOffset = groupStartZ + group * groupSpacing;
@@ -1280,9 +1280,8 @@
                                 const y = inCh * 1.0 + 0.16;
                                 highlight.position.set(x, y, z);
                                 
-                                // Only show highlights for the current group
-                                if (group === currentGroup && 
-                                    actualPaddedRow >= 0 && actualPaddedRow < paddedSize && 
+                                // Show highlights for ALL groups (not just current group)
+                                if (actualPaddedRow >= 0 && actualPaddedRow < paddedSize && 
                                     actualPaddedCol >= 0 && actualPaddedCol < paddedSize) {
                                     highlight.visible = true;
                                 } else {
