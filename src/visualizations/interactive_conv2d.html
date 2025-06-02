@@ -610,8 +610,7 @@
         
         function onWindowResize() {
             const container = document.getElementById('container');
-            const aspect = container.clientWidth / container.clientHeight;
-            camera.aspect = aspect;
+            camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
             
@@ -1008,34 +1007,23 @@
         }
         
         function updateVisualization() {
+            // Update parameter object from sliders
+            params.imageSize = parseInt(document.getElementById('image-size').value);
+            params.inputChannels = parseInt(document.getElementById('input-channels').value);
+            params.outputChannels = parseInt(document.getElementById('output-channels').value);
+            params.kernelSize = parseInt(document.getElementById('kernel-size').value);
+            params.stride = parseInt(document.getElementById('stride').value);
+            params.padding = parseInt(document.getElementById('padding').value);
+            params.dilation = parseInt(document.getElementById('dilation').value);
+            
+            // Recalculate dimensions first
             calculateDimensions();
-            clearScene();
             
-            currentPaddedImage = generateImage(params.imageSize);
-            currentKernel = generateKernel(params.kernelSize);
-            currentPaddedImage = addPadding(currentPaddedImage, params.padding);
+            // Reset animation state
+            resetAnimation();
             
-            createImageBlocks();
-            createKernelBlocks();
-            createOutputBlocks();
-            createTextLabels();
-            
-            // Position kernel in center initially but don't calculate
-            const centerRow = Math.floor(outputSize / 2);
-            const centerCol = Math.floor(outputSize / 2);
-            const centerStep = centerRow * outputSize + centerCol;
-            
-            // Move kernel to center position without calculating
-            moveKernelToPosition(centerStep);
-            
-            // Update UI to show center position but no calculation
-            document.getElementById('kernel-pos').textContent = `Position: (${centerRow}, ${centerCol}) -> (${centerRow}, ${centerCol})`;
-            document.getElementById('conv-value').textContent = 'Value: Not calculated';
-            document.getElementById('step-info').textContent = 'Ready to start';
-            
-            // Update output info
-            document.getElementById('output-dims').textContent = `${outputSize}x${outputSize}x${params.outputChannels}`;
-            document.getElementById('receptive-field').textContent = `Field: ${params.kernelSize}x${params.kernelSize}`;
+            // Recreate everything with new parameters
+            resetParametersAndScene();
         }
         
         function updateStepInfo() {
@@ -1215,19 +1203,32 @@
             const current_Y_base_for_active_outCh = kernelStartHeight + (currentOutputChannelForStep * (params.inputChannels * 0.3 + 1.0));
 
             const deltaX = current_00_elem_X - initial_00_elem_X;
-            // The Y delta should reflect the change in Y from the outCh=0 stack's base to the active outCh stack's base
-            const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
             const deltaZ = current_00_elem_Z - initial_00_elem_Z;
+            const deltaY = current_Y_base_for_active_outCh - initial_00_elem_Y_base_for_outCh0;
             const delta = new THREE.Vector3(deltaX, deltaY, deltaZ);
- 
+  
+            // Move kernel-attached labels
             textLabels.forEach(label => {
                 if (label.movesWithKernel && label.initialPosition) {
-                    label.worldPosition.copy(label.initialPosition).add(delta);
+                    // For labels that should stay at the base Y of the kernel group,
+                    // apply only XZ delta.
+                    if (label.labelType === 'outputChannels' || label.labelType === 'kernelSize' || label.labelType === 'dilation') {
+                        const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                        label.worldPosition.copy(label.initialPosition).add(xzDelta);
+                    } else {
+                        // For other labels that might need full delta (if any)
+                        label.worldPosition.copy(label.initialPosition).add(delta);
+                    }
                 }
             });
+ 
+            // Move kernel-attached arrows
             kernelArrows.forEach(arrow => {
                 if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
-                     arrow.position.copy(arrow.initialPosition).add(delta);
+                    // For arrows that should stay at the base Y of the kernel group,
+                    // apply only XZ delta.
+                    const xzDelta = new THREE.Vector3(delta.x, 0, delta.z);
+                    arrow.position.copy(arrow.initialPosition).add(xzDelta);
                 }
             });
             // --- END: Calculate delta for moving labels/arrows ---
@@ -1623,6 +1624,51 @@
                     }
                 }
             }
+        }
+        
+        function resetParametersAndScene() {
+            // Clear existing Three.js objects
+            clearSceneObjects();
+            
+            // Initialize currentKernel as a 3D array [outCh][kRow][kCol]
+            currentKernel = [];
+            for (let oc = 0; oc < params.outputChannels; oc++) {
+                const singleKernel = [];
+                for (let i = 0; i < params.kernelSize; i++) {
+                    singleKernel[i] = [];
+                    for (let j = 0; j < params.kernelSize; j++) {
+                        // Simple alternating pattern for kernel weights for now
+                        singleKernel[i][j] = ((i + j + oc) % 2 === 0) ? 1 : -1; 
+                    }
+                }
+                currentKernel.push(singleKernel);
+            }
+
+            // Initialize outputValues as a 3D array [outCh][row][col]
+            outputValues = [];
+            for (let oc = 0; oc < params.outputChannels; oc++) {
+                outputValues[oc] = [];
+                for (let i = 0; i < outputSize; i++) {
+                    outputValues[oc][i] = [];
+                    for (let j = 0; j < outputSize; j++) {
+                        outputValues[oc][i][j] = 0;
+                    }
+                }
+            }
+
+            // (Re)calculate sizes
+            paddedSize = params.imageSize + 2 * params.padding;
+            currentPaddedImage = generateImage(params.imageSize);
+            currentPaddedImage = addPadding(currentPaddedImage, params.padding);
+            
+            createImageBlocks();
+            createKernelBlocks();
+            createOutputBlocks();
+            createTextLabels();
+        }
+
+        function clearSceneObjects() {
+            clearScene();
         }
         
         // Initialize when page loads
