@@ -1170,68 +1170,72 @@
         }
         
         function animateStep() {
-            if (!isAnimating) { // Handles pause, or reset from slider change
-                document.getElementById('start-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
-                return;
-            }
-        
-            if (currentStep >= totalSteps) { // Animation cycle completed
-                resetAnimation();
-                startAnimation();
-                return;
-            }
+            if (!isAnimating) return;
             
-            // Calculate current position for this step
-            const outputChannel = Math.floor(currentStep / (outputSize * outputSize));
-            const stepInChannel = currentStep % (outputSize * outputSize);
-            const outputRow = Math.floor(stepInChannel / outputSize);
-            const outputCol = stepInChannel % outputSize;
+            const totalSteps = outputSize * outputSize;
             
-            // Move kernel to the current position
-            moveKernelToPosition(currentStep);
-            
-            // Calculate convolution value
-            const convValue = calculateConvolutionAt(outputRow, outputCol, outputChannel);
-            
-            // Store the calculated value
-            if (outputValues[outputChannel] && outputValues[outputChannel][outputRow]) {
-                outputValues[outputChannel][outputRow][outputCol] = convValue;
-            }
-            
-            // Update the visual appearance for ALL output channels at this outputRow and outputCol
-            for (let ch = 0; ch < params.outputChannels; ch++) {
-                if (outputBlocks[ch] && 
-                    outputBlocks[ch][outputRow] && 
-                    outputBlocks[ch][outputRow][outputCol]) {
-                    const outputBlock = outputBlocks[ch][outputRow][outputCol];
+            if (currentStep < totalSteps) {
+                moveKernelToPosition(currentStep);
+                for (let ch = 0; ch < params.outputChannels; ch++) {
+                    // Calculate and update output for current step
+                    const currentOutputChannel = ch;
+                    const stepInChannel = currentStep % (outputSize * outputSize);
+                    const outputRow = Math.floor(stepInChannel / outputSize);
+                    const outputCol = stepInChannel % outputSize;
                     
-                    // Change opacity to make it appear "calculated" (less transparent)
-                    outputBlock.material.opacity = 0.8; 
-                    
-                    // Update emissive color to give a glow, using the correct channel's color
-                    const outputChannelColors = [0xee0066, 0x0099ee, 0x99ee00, 0xee9900]; 
-                    const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
-                    outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.2);
-
-                    if (!outputBlock.userData) outputBlock.userData = {};
-                    outputBlock.userData.calculated = true;
+                const result = calculateConvolutionAt(outputRow, outputCol, currentOutputChannel);
+                outputValues[currentOutputChannel][outputRow][outputCol] = result;
+                
+                // Update the visual representation
+                const outputBlock = outputBlocks[currentOutputChannel][outputRow][outputCol];
+                if (outputBlock) {
+                    // Make more opaque to show it's calculated
+                        outputBlock.material.opacity = 0.8;
+                        outputBlock.userData.calculated = true;
+                    }
                 }
-            }
-            
-            document.getElementById('conv-value').textContent = `Value: ${convValue.toFixed(2)}`;
-            document.getElementById('kernel-pos').textContent = `Position: (${outputCol}, ${outputRow}) Ch: ${outputChannel}`;
-            document.getElementById('step-info').textContent = `Step: ${currentStep + 1}/${totalSteps} - Processing`;
-            
-            currentStep++;
-            
-            if (isAnimating) {
+                
+                currentStep++;
+                setTimeout(animateStep, animationSpeed);
+            } else {
+                // Animation complete - reset and restart automatically
+                currentStep = 0;
+                
+                // Reset all output blocks to uncalculated state
+                resetOutputBlocks();
+                
+                // Show completion message briefly
+                document.getElementById('step-info').textContent = 'Complete! Restarting...';
+                document.getElementById('kernel-pos').textContent = 'Position: Resetting';
+                document.getElementById('conv-value').textContent = 'Value: Restarting';
+                
+                // Reset kernel to center position
+                const centerRow = Math.floor(outputSize / 2);
+                const centerCol = Math.floor(outputSize / 2);
+                const centerStep = centerRow * outputSize + centerCol;
+                moveKernelToPosition(centerStep);
+                
+                // Reset kernel arrows to initial positions
+                kernelArrows.forEach(arrow => {
+                    if (arrow.initialPosition && (arrow.labelType === 'kernelSize' || arrow.labelType === 'outputChannels' || arrow.labelType === 'dilation')) {
+                        arrow.position.copy(arrow.initialPosition);
+                    }
+                });
+                
+                // Reset kernel-related text labels to their initial positions
+                textLabels.forEach(label => {
+                    if (label.movesWithKernel && label.initialPosition) {
+                        label.worldPosition.copy(label.initialPosition);
+                    }
+                });
+                
+                // Wait 1.5 seconds then restart animation automatically
                 setTimeout(() => {
-                    animateStep();
-                }, animationSpeed);
-            } else { 
-                document.getElementById('start-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
+                    if (isAnimating) { // Only restart if user hasn't paused
+                        document.getElementById('step-info').textContent = 'Restarting...';
+                        animateStep(); // Restart the animation
+                    }
+                }, 1500);
             }
         }
         
@@ -1299,7 +1303,8 @@
                     const globalOutCh = group * outputChannelsPerGroup + outCh;
                     
                     // Only show kernels for the current group
-                    const shouldShowKernel = (group === currentGroup);
+                    shouldShowKernel = true;
+                    // const shouldShowKernel = (group === currentGroup);
                     
                     for (let inCh = 0; inCh < inputChannelsPerGroup; inCh++) {
                         const globalInCh = group * inputChannelsPerGroup + inCh;
@@ -1814,6 +1819,22 @@
 
         function clearSceneObjects() {
             clearScene();
+        }
+        
+        function resetOutputBlocks() {
+            // Reset all output blocks to uncalculated state
+            for (let ch = 0; ch < outputBlocks.length; ch++) {
+                for (let i = 0; i < outputBlocks[ch].length; i++) {
+                    for (let j = 0; j < outputBlocks[ch][i].length; j++) {
+                        if (outputBlocks[ch][i][j]) {
+                            const block = outputBlocks[ch][i][j];
+                            // Reset to uncalculated state
+                            block.material.opacity = 0.2;
+                            block.userData.calculated = false;
+                        }
+                    }
+                }
+            }
         }
         
         // Initialize when page loads
