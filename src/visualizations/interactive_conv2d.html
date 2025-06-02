@@ -947,21 +947,21 @@
             
             // Stride arrow (X axis) - single arrow, text at beginning with adaptive height
             if (params.stride > 1) {
-                const strideStart = new THREE.Vector3(paddedSize/2 + 0.8, adaptiveHeight, 0);
+                const strideStart = new THREE.Vector3(-paddedSize/2 + 0.5, adaptiveHeight, paddedSize/2 - 0.2);
                 textLabels.push(createLabel('Stride', strideStart, colors.stride, 'stride'));
                 
-                createArrow(strideStart, 'x', params.stride, colors.stride, false, 'stride');
+                createArrow(strideStart, 'x', params.stride-0.5, colors.stride, false, 'stride');
             }
             
             // Dilation arrow (X axis) - single arrow, text at beginning
             if (params.dilation > 1) {
-                const dilationStart = new THREE.Vector3(-effectiveKernelSize/2, kernelStartHeight + 0.6, effectiveKernelSize/2 + 1.2);
+                const dilationStart = new THREE.Vector3(-effectiveKernelSize/2 + 0.2, kernelStartHeight, effectiveKernelSize/2 - 0.2);
                 const dilationLabel = createLabel('Dilation', dilationStart, colors.dilation, 'dilation');
                 dilationLabel.movesWithKernel = true;
                 dilationLabel.initialPosition = dilationStart.clone();
                 textLabels.push(dilationLabel);
                 
-                createArrow(dilationStart, 'x', params.dilation, colors.dilation, true, 'dilation');
+                createArrow(dilationStart, 'x', params.dilation - 0.2, colors.dilation, true, 'dilation');
             }
             
             // Output size arrows (X and Z axes) - start from corner intersection - always visible
@@ -1149,24 +1149,24 @@
                 outputValues[outputChannel][outputRow][outputCol] = convValue;
             }
             
-            // Update the visual appearance of the corresponding output block
-            // This targets the specific block for the current outputChannel, outputRow, and outputCol
-            if (outputBlocks[outputChannel] && 
-                outputBlocks[outputChannel][outputRow] && 
-                outputBlocks[outputChannel][outputRow][outputCol]) {
-                const outputBlock = outputBlocks[outputChannel][outputRow][outputCol];
-                
-                // Change opacity to make it appear "calculated" (less transparent)
-                outputBlock.material.opacity = 0.8; 
-                // outputBlock.material.transparent is true (set at creation), so opacity change is effective
+            // Update the visual appearance for ALL output channels at this outputRow and outputCol
+            for (let ch = 0; ch < params.outputChannels; ch++) {
+                if (outputBlocks[ch] && 
+                    outputBlocks[ch][outputRow] && 
+                    outputBlocks[ch][outputRow][outputCol]) {
+                    const outputBlock = outputBlocks[ch][outputRow][outputCol];
+                    
+                    // Change opacity to make it appear "calculated" (less transparent)
+                    outputBlock.material.opacity = 0.8; 
+                    
+                    // Update emissive color to give a glow, using the correct channel's color
+                    const outputChannelColors = [0xee0066, 0x0099ee, 0x99ee00, 0xee9900]; 
+                    const baseColor = new THREE.Color(outputChannelColors[ch % outputChannelColors.length]);
+                    outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.2);
 
-                // Update emissive color to give a glow, using the correct channel's color
-                const outputChannelColors = [0xee0066, 0x0099ee, 0x99ee00, 0xee9900]; 
-                const baseColor = new THREE.Color(outputChannelColors[outputChannel % outputChannelColors.length]);
-                outputBlock.material.emissive = baseColor.clone().multiplyScalar(0.2);
-
-                if (!outputBlock.userData) outputBlock.userData = {};
-                outputBlock.userData.calculated = true;
+                    if (!outputBlock.userData) outputBlock.userData = {};
+                    outputBlock.userData.calculated = true;
+                }
             }
             
             document.getElementById('conv-value').textContent = `Value: ${convValue.toFixed(2)}`;
