@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Protein Folding</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-start: #1f2a44;
+            --bg-end: #0d1117;
+            --text: #e5e7eb;
+            --panel: rgba(255, 255, 255, 0.05);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --accent: #8b97ff;
+            --accent-border: rgba(139, 151, 255, 0.6);
+            --accent-hover: rgba(139, 151, 255, 0.2);
+            --muted: #cbd5e1;
+            --dot-border: rgba(255,255,255,0.4);
+            --legend-a: #34d399;
+            --legend-b: #60a5fa;
+            --legend-c: #fbbf24;
+        }
+        body[data-theme="light"] {
+            --bg-start: #e8eefc;
+            --bg-end: #d6def3;
+            --text: #0f172a;
+            --panel: rgba(255, 255, 255, 0.8);
+            --panel-border: rgba(0, 0, 0, 0.08);
+            --accent: #3949ab;
+            --accent-border: rgba(57, 73, 171, 0.35);
+            --accent-hover: rgba(57, 73, 171, 0.15);
+            --muted: #475569;
+            --dot-border: rgba(0,0,0,0.25);
+            --legend-a: #16a34a;
+            --legend-b: #2563eb;
+            --legend-c: #d97706;
+        }
+        body {
+            background: radial-gradient(circle at 20% 20%, var(--bg-start), var(--bg-end));
+            color: var(--text);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        header {
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--panel);
+            border-bottom: 1px solid var(--panel-border);
+            backdrop-filter: blur(10px);
+        }
+        .title { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.2px; }
+        .links { display: flex; align-items: center; gap: 8px; }
+        .links a {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.9rem;
+            border: 1px solid var(--accent-border);
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+        .links a:hover { background: var(--accent-hover); }
+        main { display: grid; grid-template-columns: 320px 1fr; gap: 12px; padding: 12px; flex: 1; min-height: 0; }
+        #canvas-container {
+            background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            min-height: 360px;
+        }
+        #canvas-container canvas { width: 100%; height: 100%; display: block; }
+        .glass-panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+        .panel-title { font-size: 0.95rem; font-weight: 700; color: var(--muted); }
+        .control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        .control input[type="range"] { flex: 1; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.85rem;
+        }
+        button {
+            background: linear-gradient(135deg, #7c3aed, #2563eb);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        button.secondary {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        button:active { transform: translateY(1px); }
+        .button-row { display: flex; gap: 8px; }
+        .control-label { min-width: 110px; }
+        .select-input {
+            flex: 1;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid var(--panel-border);
+            background: var(--panel);
+            color: var(--text);
+        }
+        .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+        .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid var(--dot-border);
+        }
+        .dot-a { background: var(--legend-a); }
+        .dot-b { background: var(--legend-b); }
+        .dot-c { background: var(--legend-c); }
+        .info-text { font-size: 0.9rem; line-height: 1.4; color: var(--muted); }
+        @media (max-width: 960px) {
+            main { grid-template-columns: 1fr; grid-template-rows: 240px auto; }
+            #canvas-container { min-height: 260px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="title">Protein Folding Playground</div>
+        <div class="links">
+            <button id="theme-btn">Light mode</button>
+            <a href="../../">← Back</a>
+            <a href="https://www.youtube.com/watch?v=9oKlXa6l3kQ" target="_blank" rel="noopener">What is folding?</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="glass-panel" aria-label="Controls">
+            <div class="panel-title">Simulation Controls</div>
+            <div class="control">
+                <label class="control-label" for="temperature">Temperature</label>
+                <input id="temperature" type="range" min="0" max="1.5" step="0.05" value="0.6">
+                <span id="temperature-value" class="badge">0.60 kT</span>
+            </div>
+            <div class="control">
+                <label class="control-label" for="stiffness">Backbone stiffness</label>
+                <input id="stiffness" type="range" min="0.1" max="3" step="0.1" value="1.2">
+                <span id="stiffness-value" class="badge">1.2×</span>
+            </div>
+            <div class="control">
+                <label class="control-label" for="target-shape">Target shape</label>
+                <select id="target-shape" class="select-input">
+                    <option value="helix">Alpha Helix</option>
+                    <option value="sheet">Beta Sheet</option>
+                    <option value="coil">Random Coil</option>
+                </select>
+            </div>
+        <div class="button-row">
+            <button id="start-btn">Pause</button>
+            <button id="reset-btn" class="secondary">Reset</button>
+        </div>
+            <div class="panel-title">Legend</div>
+            <div class="legend">
+                <div class="legend-item"><div class="dot dot-a"></div>Hydrophobic core seekers</div>
+                <div class="legend-item"><div class="dot dot-b"></div>Polar residues</div>
+                <div class="legend-item"><div class="dot dot-c"></div>Backbone anchor</div>
+            </div>
+            <div class="panel-title">How to read this</div>
+            <p class="info-text">
+                Each sphere is an amino acid. Temperature adds random motion; stiffness keeps the backbone tight.
+                The target shape pulls the chain toward a helix, sheet, or loose coil so you can see folding pathways in real time.
+            </p>
+        </div>
+        <div id="canvas-container">
+            <canvas id="foldCanvas"></canvas>
+        </div>
+    </main>
+
+    <script>
+        class Vec3 {
+            constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+            add(v) { this.x += v.x; this.y += v.y; this.z += v.z; return this; }
+            sub(v) { this.x -= v.x; this.y -= v.y; this.z -= v.z; return this; }
+            multiplyScalar(s) { this.x *= s; this.y *= s; this.z *= s; return this; }
+            length() { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
+            normalize() { const len = this.length(); if (len > 1e-6) this.multiplyScalar(1 / len); return this; }
+            clone() { return new Vec3(this.x, this.y, this.z); }
+            set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
+        }
+
+        const container = document.getElementById('canvas-container');
+        const canvas = document.getElementById('foldCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = 0, height = 0;
+        const themeStyles = {
+            dark: {
+                palette: ['#34d399', '#60a5fa', '#fbbf24'],
+                bgStart: '#1f2a44',
+                bgEnd: '#0d1117',
+                bondStart: 'rgba(251, 191, 36, 0.7)',
+                bondEnd: 'rgba(251, 191, 36, 0.35)',
+                stroke: 'rgba(255,255,255,0.25)'
+            },
+            light: {
+                palette: ['#16a34a', '#2563eb', '#d97706'],
+                bgStart: '#e8eefc',
+                bgEnd: '#d6def3',
+                bondStart: 'rgba(217, 119, 6, 0.7)',
+                bondEnd: 'rgba(217, 119, 6, 0.35)',
+                stroke: 'rgba(15,23,42,0.25)'
+            }
+        };
+        const VALID_THEMES = ['dark', 'light'];
+        const THEME_LABELS = { dark: 'Light mode', light: 'Dark mode' };
+        const savedTheme = localStorage.getItem('foldTheme');
+        const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        let theme = VALID_THEMES.includes(savedTheme) ? savedTheme : (prefersLight ? 'light' : 'dark');
+        let palette = [...themeStyles[theme].palette];
+        let bgStart = themeStyles[theme].bgStart;
+        let bgEnd = themeStyles[theme].bgEnd;
+        let bondStart = themeStyles[theme].bondStart;
+        let bondEnd = themeStyles[theme].bondEnd;
+        let strokeColor = themeStyles[theme].stroke;
+        const residues = [];
+        const chainLength = 26;
+        let temperature = parseFloat(document.getElementById('temperature').value);
+        let stiffness = parseFloat(document.getElementById('stiffness').value);
+        let targetMode = document.getElementById('target-shape').value;
+        let isRunning = true;
+        let camAngle = 0;
+
+        const orbitRadius = 26;
+        const focalLength = 28;
+        const projectionScale = 22;
+        const alphaForHex = (hex, alpha) => {
+            const clean = hex.replace('#', '');
+            const num = parseInt(clean, 16);
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
+        function applyTheme(nextTheme) {
+            theme = nextTheme;
+            const style = themeStyles[theme];
+            palette = [...style.palette];
+            bgStart = style.bgStart;
+            bgEnd = style.bgEnd;
+            bondStart = style.bondStart;
+            bondEnd = style.bondEnd;
+            strokeColor = style.stroke;
+            document.body.setAttribute('data-theme', theme);
+            const btn = document.getElementById('theme-btn');
+            if (btn) btn.textContent = THEME_LABELS[theme];
+            const [legendA, legendB, legendC] = style.palette;
+            document.documentElement.style.setProperty('--legend-a', legendA);
+            document.documentElement.style.setProperty('--legend-b', legendB);
+            document.documentElement.style.setProperty('--legend-c', legendC);
+            localStorage.setItem('foldTheme', theme);
+        }
+
+        applyTheme(theme);
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function initChain() {
+            residues.length = 0;
+            for (let i = 0; i < chainLength; i++) {
+                residues.push({
+                    pos: new Vec3(i * 0.9 - 12, 0, 0),
+                    vel: new Vec3(),
+                    type: i % palette.length
+                });
+            }
+        }
+        initChain();
+
+        function helixTarget(i) {
+            const angle = i * 0.9;
+            const radius = 4;
+            return new Vec3(Math.cos(angle) * radius, (i - chainLength / 2) * 0.3, Math.sin(angle) * radius);
+        }
+
+        function sheetTarget(i) {
+            const row = Math.floor(i / 6);
+            const col = i % 6;
+            return new Vec3((row % 2 === 0 ? col : 5 - col) * 1.2 - 3, row * 0.4 - 3, (row % 2) * 1.4 - 0.7);
+        }
+
+        function coilTarget(i) {
+            return new Vec3(Math.sin(i) * 3, Math.cos(i * 0.7) * 2, (i - chainLength / 2) * 0.35);
+        }
+
+        function targetFor(i) {
+            if (targetMode === 'sheet') return sheetTarget(i);
+            if (targetMode === 'coil') return coilTarget(i);
+            return helixTarget(i);
+        }
+
+        function stepSimulation() {
+            const targetStrength = 0.008 * stiffness;
+            const bondRest = 0.9;
+
+            residues.forEach((residue, i) => {
+                const target = targetFor(i);
+                const toTarget = target.clone().sub(residue.pos).multiplyScalar(targetStrength);
+                residue.vel.add(toTarget);
+
+                if (i > 0) {
+                    const prev = residues[i - 1];
+                    const delta = residue.pos.clone().sub(prev.pos);
+                    const dist = delta.length();
+                    if (dist > 1e-4) {
+                        const diff = dist - bondRest;
+                        const correction = delta.normalize().multiplyScalar(diff * stiffness * 0.25);
+                        residue.vel.add(correction.clone().multiplyScalar(-1));
+                        prev.vel.add(correction);
+                    }
+                }
+
+                residue.vel.add(new Vec3(
+                    (Math.random() - 0.5) * temperature * 0.25,
+                    (Math.random() - 0.5) * temperature * 0.2,
+                    (Math.random() - 0.5) * temperature * 0.25
+                ));
+
+                residue.vel.multiplyScalar(0.92);
+                residue.pos.add(residue.vel);
+            });
+        }
+
+        function project(vec) {
+            const cosA = Math.cos(camAngle);
+            const sinA = Math.sin(camAngle);
+            const xz = vec.x * cosA - vec.z * sinA;
+            const zz = vec.x * sinA + vec.z * cosA;
+            const depth = zz + orbitRadius;
+            const perspective = focalLength / (depth + 1);
+            return {
+                x: width / 2 + xz * perspective * projectionScale,
+                y: height / 2 - vec.y * perspective * projectionScale,
+                scale: perspective,
+                depth,
+            };
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createRadialGradient(width * 0.3, height * 0.3, 40, width * 0.4, height * 0.3, width * 0.9);
+            gradient.addColorStop(0, bgStart);
+            gradient.addColorStop(1, bgEnd);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function render() {
+            if (isRunning) stepSimulation();
+            camAngle += 0.003;
+
+            drawBackground();
+
+            const projections = residues.map(r => ({ ...project(r.pos), type: r.type }));
+
+            // Bonds
+            ctx.lineCap = 'round';
+            for (let i = 0; i < chainLength - 1; i++) {
+                const p1 = projections[i];
+                const p2 = projections[i + 1];
+                const avgScale = (p1.scale + p2.scale) * 0.5;
+                const stroke = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+                stroke.addColorStop(0, bondStart);
+                stroke.addColorStop(1, bondEnd);
+                ctx.strokeStyle = stroke;
+                ctx.lineWidth = Math.max(1.5, avgScale * 10);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+
+            // Residues (furthest first)
+            projections
+                .map((p, idx) => ({ ...p, idx }))
+                .sort((a, b) => b.depth - a.depth)
+                .forEach(p => {
+                    const radius = Math.max(4, p.scale * 16);
+                    const color = palette[residues[p.idx].type];
+                    const colorSoft = alphaForHex(color, 0.8);
+                    const grad = ctx.createRadialGradient(p.x - radius * 0.3, p.y - radius * 0.3, radius * 0.2, p.x, p.y, radius);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.15, color);
+                    grad.addColorStop(1, colorSoft);
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = strokeColor;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+
+            requestAnimationFrame(render);
+        }
+        render();
+        document.getElementById('start-btn').textContent = 'Pause';
+
+        document.getElementById('temperature').addEventListener('input', (e) => {
+            temperature = parseFloat(e.target.value);
+            document.getElementById('temperature-value').textContent = `${temperature.toFixed(2)} kT`;
+        });
+        document.getElementById('stiffness').addEventListener('input', (e) => {
+            stiffness = parseFloat(e.target.value);
+            document.getElementById('stiffness-value').textContent = `${stiffness.toFixed(1)}×`;
+        });
+        document.getElementById('target-shape').addEventListener('change', (e) => {
+            targetMode = e.target.value;
+        });
+
+        document.getElementById('theme-btn').addEventListener('click', () => {
+            applyTheme(theme === 'dark' ? 'light' : 'dark');
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            isRunning = !isRunning;
+            document.getElementById('start-btn').textContent = isRunning ? 'Pause' : 'Resume';
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            initChain();
+            isRunning = true;
+            document.getElementById('start-btn').textContent = 'Pause';
+        });
+    </script>
+</body>
+</html>
